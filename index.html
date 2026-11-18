@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>AETHER OS · 概念系统</title>
+<meta name="description" content="AETHER OS — 三壳终端、全场景套件的未来科技风移动系统概念壳，可在 Android 与 iPhone 上安装到主屏幕。">
+<meta name="theme-color" content="#04070c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AETHER OS">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-1024.png">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-accent="cyan" data-wall="aurora">
+
+<!-- ============ 氛围背景层 ============ -->
+<div class="fx" aria-hidden="true">
+  <div class="grid-floor"></div>
+  <div class="glow g1"></div>
+  <div class="glow g2"></div>
+  <canvas id="particles"></canvas>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+</div>
+
+<!-- ============ 状态栏 ============ -->
+<div id="statusbar" class="statusbar hidden" aria-hidden="true">
+  <div class="sb-left">
+    <span class="sb-brand">AETHER<span>OS</span></span>
+    <span class="sb-tag" id="sbnet">WEB CORE</span>
+  </div>
+  <div class="sb-right">
+    <span class="sb-signal" id="sbsignal" title="信号">
+      <i></i><i></i><i></i><i></i><i></i>
+    </span>
+    <span class="sb-net" id="sblink" title="网络">5G</span>
+    <span class="sb-wifi" id="sbwifi" title="WiFi">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8.8C7.6 3.7 16.4 3.7 22 8.8"/><path d="M5.2 12.4c4-3.6 9.6-3.6 13.6 0"/><path d="M8.5 15.9c2.2-2 4.8-2 7 0"/><circle cx="12" cy="19.3" r="1.1" fill="currentColor" stroke="none"/></svg>
+    </span>
+    <span class="sb-battery" id="sbbattery"><b>87</b><i></i></span>
+    <span class="sb-clock" id="sbclock">--:--</span>
+  </div>
+</div>
+
+<!-- ============ 启动界面 ============ -->
+<section id="boot" class="boot">
+  <div class="boot-frame">
+    <div class="boot-head">
+      <span class="mono">AETHER BOOTLOADER · CONCEPT</span>
+      <span class="mono" id="bootbuild">BUILD 2026.11.18</span>
+    </div>
+    <div class="boot-core">
+      <div class="hex-logo" aria-hidden="true">
+        <svg viewBox="0 0 160 160" fill="none">
+          <defs>
+            <linearGradient id="hexgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="var(--acc)"/>
+              <stop offset="1" stop-color="var(--acc2)"/>
+            </linearGradient>
+          </defs>
+          <path d="M80 8 L142 44 V116 L80 152 L18 116 V44 Z" stroke="url(#hexgrad)" stroke-width="2.5"/>
+          <path d="M80 30 L123 55 V105 L80 130 L37 105 V55 Z" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+          <path d="M80 58 L80 102 M60 70 L100 92 M100 70 L60 92" stroke="url(#hexgrad)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="80" cy="80" r="48" stroke="rgba(255,255,255,.08)" stroke-dasharray="4 10"/>
+        </svg>
+      </div>
+      <h1 class="boot-word">AETHER<span>OS</span></h1>
+      <p class="boot-tag">TRI-SHELL MOBILE EXPERIENCE</p>
+      <div class="boot-progress"><i id="bootbar"></i></div>
+      <pre id="bootlog" class="bootlog mono" aria-live="polite"></pre>
+      <button id="bootskip" class="ghost-btn">跳过启动</button>
+      <p class="boot-fine mono">概念演示 · 非真实手机固件 · WEB RUNTIME</p>
+    </div>
+    <div class="boot-foot mono">
+      <span>AETHER CORE // WEB COMPOSITOR</span>
+      <span id="bootpct">0%</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 锁屏 ============ -->
+<section id="lock" class="lock hidden">
+  <div class="lock-head">
+    <span class="chip" id="lockchip-net"><i class="dot"></i> WEB CORE</span>
+    <span class="chip" id="lockchip-bat">87%</span>
+  </div>
+  <div class="lock-center">
+    <div class="lock-orbit" aria-hidden="true">
+      <i class="ring r1"></i><i class="ring r2"></i><i class="ring r3"></i>
+      <span class="orbit-core">A</span>
+    </div>
+    <div class="lock-clock" id="lockclock">--:--</div>
+    <div class="lock-date" id="lockdate">--</div>
+    <div class="lock-note mono">AETHER OS · CONCEPT SHELL</div>
+  </div>
+  <div class="lock-foot">
+    <button id="unlock" class="lock-hint">
+      <span class="unlock-line"></span>
+      <span>上滑或点击解锁</span>
+      <span class="mono">TAP / SWIPE UP</span>
+    </button>
+  </div>
+</section>
+
+<!-- ============ 桌面 ============ -->
+<main id="home" class="home hidden">
+  <header class="hero">
+    <div class="hero-card">
+      <div class="hero-text">
+        <p class="eyebrow"><i class="live-dot"></i> SYSTEM ONLINE · CONCEPT BUILD</p>
+        <h1 class="hero-title">AETHER<span>OS</span></h1>
+        <p class="hero-sub">三壳终端 · 全场景套件 · Android / iPhone 双端可安装</p>
+        <div class="hero-chips">
+          <span class="chip">LINUX SHELL</span>
+          <span class="chip">CMD</span>
+          <span class="chip">POWERSHELL</span>
+        </div>
+      </div>
+      <div class="hero-orb" aria-hidden="true">
+        <i class="ho-ring a"></i>
+        <i class="ho-ring b"></i>
+        <i class="ho-ring c"></i>
+        <span class="ho-core">A</span>
+      </div>
+    </div>
+    <div class="hud-row">
+      <div class="hud-card">
+        <span class="hud-label">NETWORK</span>
+        <strong id="hudnet">正在检测</strong>
+        <em id="hudnet-sub">navigator.connection</em>
+      </div>
+      <div class="hud-card">
+        <span class="hud-label">GPS</span>
+        <strong id="hudgps">待授权</strong>
+        <em>地图内可获取真实定位</em>
+      </div>
+      <div class="hud-card">
+        <span class="hud-label">POWER</span>
+        <strong id="hudbat">87%</strong>
+        <em id="hudbat-sub">BATTERY API</em>
+      </div>
+    </div>
+  </header>
+
+  <section class="apps-label">
+    <h2>应用程序</h2>
+    <span class="mono" id="appcount">14 APPS</span>
+  </section>
+  <section id="appgrid" class="app-grid" aria-label="应用列表"></section>
+  <div class="home-spacer"></div>
+
+  <nav class="dock" id="dock" aria-label="常用应用"></nav>
+</main>
+
+<!-- ============ 应用容器 ============ -->
+<section id="app-layer" class="app-layer" aria-hidden="true">
+  <div class="app-window">
+    <header class="app-head">
+      <button id="app-close" class="icon-btn" aria-label="返回桌面">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg>
+      </button>
+      <div class="app-head-text">
+        <h2 id="app-title">应用</h2>
+        <p id="app-sub">AETHER OS</p>
+      </div>
+      <div class="app-actions" id="app-actions"></div>
+    </header>
+    <div class="app-body" id="app-body"></div>
+    <button class="home-pill" id="app-home" aria-label="回到桌面"><i></i></button>
+  </div>
+</section>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="js/core.js" defer></script>
+<script src="js/terminal.js" defer></script>
+<script src="js/apps-social.js" defer></script>
+<script src="js/apps-tools.js" defer></script>
+</body>
+</html>

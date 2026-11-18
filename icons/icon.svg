@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="AETHER OS">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#03070c"/>
+      <stop offset="0.55" stop-color="#061219"/>
+      <stop offset="1" stop-color="#0a1b26"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#36e6ff"/>
+      <stop offset="0.55" stop-color="#7fa8ff"/>
+      <stop offset="1" stop-color="#ff3bdc"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eaffff"/>
+      <stop offset="0.3" stop-color="#5beeff"/>
+      <stop offset="0.62" stop-color="#ff49e0"/>
+      <stop offset="1" stop-color="#ff9bec"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.46" r="0.55">
+      <stop offset="0" stop-color="#25d9ff" stop-opacity="0.5"/>
+      <stop offset="0.55" stop-color="#25d9ff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#25d9ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0V64" fill="none" stroke="#36e6ff" stroke-opacity="0.07" stroke-width="2"/>
+    </pattern>
+    <clipPath id="round">
+      <rect width="1024" height="1024" rx="224"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <rect width="1024" height="1024" fill="url(#grid)"/>
+    <circle cx="512" cy="500" r="470" fill="url(#halo)"/>
+
+    <g filter="url(#glow)" opacity="0.95">
+      <circle cx="512" cy="512" r="338" fill="none" stroke="url(#ring)" stroke-width="14"/>
+      <circle cx="512" cy="512" r="292" fill="none" stroke="#36e6ff" stroke-opacity="0.35" stroke-width="3"
+              stroke-dasharray="6 22"/>
+      <ellipse cx="512" cy="512" rx="412" ry="168" fill="none" stroke="#ff3bdc" stroke-opacity="0.55"
+               stroke-width="7" transform="rotate(-26 512 512)"/>
+      <circle cx="796" cy="337" r="13" fill="#ff7ce6"/>
+    </g>
+
+    <path d="M330 296 L694 712" fill="none" stroke="url(#core)" stroke-width="60"
+          stroke-linecap="square" filter="url(#glow)"/>
+    <path d="M694 296 L330 712" fill="none" stroke="url(#core)" stroke-width="60"
+          stroke-linecap="square" filter="url(#glow)"/>
+    <path d="M330 296 L694 712 M694 296 L330 712" stroke="#eaffff" stroke-opacity="0.45"
+          stroke-width="6" fill="none"/>
+    <circle cx="512" cy="504" r="13" fill="#eaffff" opacity="0.9"/>
+
+    <g fill="#36e6ff">
+      <rect x="176" y="176" width="34" height="10" rx="5" opacity="0.8"/>
+      <rect x="176" y="176" width="10" height="34" rx="5" opacity="0.8"/>
+      <rect x="814" y="838" width="34" height="10" rx="5" opacity="0.8"/>
+      <rect x="838" y="814" width="10" height="34" rx="5" opacity="0.8"/>
+    </g>
+  </g>
+</svg>
