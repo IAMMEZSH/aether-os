@@ -1,16 +1,20 @@
 /* AETHER OS · Service Worker
    App shell 缓存 + 离线回退；不拦截桥接 API 与跨域请求。 */
-const VERSION = 'aether-v1.0.0';
+const VERSION = 'aether-v1.1.0-b3';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/fonts.css',
   './css/style.css',
+  './css/files.css',
+  './css/office.css',
   './js/core.js',
   './js/terminal.js',
   './js/apps-social.js',
   './js/apps-tools.js',
+  './js/files.js',
+  './js/office.js',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -33,6 +37,10 @@ self.addEventListener('activate', event => {
       .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', event => {

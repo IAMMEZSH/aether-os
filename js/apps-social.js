@@ -1,64 +1,140 @@
 /* ============================================================
    AETHER APPS · 电话 / 短信 / 微信 / QQ
+   本机系统桥接：tel: / sms: / weixin:// / mqq:// / Web Share
    ============================================================ */
 (() => {
   'use strict';
 
-  const pad = n => String(n).padStart(2, '0');
-  const fmtClock = ts => { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
-  const fmtList = ts => {
-    const d = new Date(ts), now = new Date();
-    if (d.toDateString() === now.toDateString()) return fmtClock(ts);
-    return (d.getMonth() + 1) + '/' + d.getDate();
-  };
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // 旧版里的会话与通话记录全部是演示数据，升级后统一清除。
+  ['phone.calls', 'messages.threads', 'wechat.threads', 'qq.threads'].forEach(k => Aether.store.del(k));
 
-  function el(tag, cls, text) {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text !== undefined) n.textContent = text;
-    return n;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const normalizePhone = s => String(s || '').replace(/[^\d+*#]/g, '').slice(0, 32);
+  const isPhone = s => /^\+?[0-9*#]{2,31}$/.test(s) && /\d/.test(s);
+  const phoneForUri = s => normalizePhone(s).replace(/#/g, '%23');
+
+  // iOS 的 sms: body 参数使用 &，Android 使用 ?；不保证所有短信 App 都预填正文。
+  function smsUri(number, body) {
+    const n = phoneForUri(number);
+    if (!body) return 'sms:' + n;
+    return 'sms:' + n + (isIOS ? '&' : '?') + 'body=' + encodeURIComponent(body);
+  }
+
+  function launch(uri, label, api, note) {
+    try {
+      const a = document.createElement('a');
+      a.href = uri;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 1200);
+      api.toast(note || '已请求打开' + label + '；若未跳转，请确认设备已安装对应 App');
+      return true;
+    } catch (err) {
+      api.toast('无法唤起' + label);
+      return false;
+    }
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise((resolve, reject) => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      ok ? resolve() : reject(new Error('copy failed'));
+    });
+  }
+
+  async function pickContact(api) {
+    if (!navigator.contacts || typeof navigator.contacts.select !== 'function') {
+      api.toast('此浏览器不支持通讯录选择，请手动输入号码');
+      return null;
+    }
+    try {
+      const picked = await navigator.contacts.select(['name', 'tel'], { multiple: false });
+      if (!picked || !picked.length) return null;
+      const tel = (picked[0].tel || []).find(Boolean);
+      if (!tel) { api.toast('该联系人没有电话号码'); return null; }
+      return {
+        name: (picked[0].name || [])[0] || '',
+        number: normalizePhone(tel)
+      };
+    } catch (err) {
+      if (err && err.name === 'AbortError') return null;
+      api.toast('无法读取通讯录，请检查浏览器权限');
+      return null;
+    }
+  }
+
+  async function shareText(text, api, appName) {
+    if (!text) { api.toast('先输入要分享的文字'); return; }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'AETHER OS', text });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await copyText(text);
+      api.toast('系统分享不可用，已复制草稿，可粘贴到' + appName);
+    } catch (err) {
+      api.toast('系统分享不可用，请手动复制');
+    }
   }
 
   /* ===================== 电话 ===================== */
   Aether.registerApp({
     id: 'phone',
     name: '电话',
-    sub: 'SIMULATED TELEPHONY · 概念通话',
+    sub: 'SYSTEM TELEPHONY · 系统电话',
     icon: 'phone',
     accent: '#5dffb0',
     order: 20,
     flush: true,
     render(root, api) {
       root.classList.add('dialer');
-      let calls = Aether.store.get('phone.calls', [
-        { name: '林晓', number: '138 0000 1234', duration: 132, ts: Date.now() - 3600e3, dir: 'in' },
-        { name: '未知号码', number: '010 5555 9021', duration: 0, ts: Date.now() - 86400e3, dir: 'missed' }
-      ]);
-      const contacts = { '13800001234': '林晓', '01055559021': '未知号码' };
       let number = '';
-      let callTimer = null;
+      let contactName = '';
 
       root.innerHTML = `
         <div class="dialer-display">
           <div class="dialer-number" id="dialNum"></div>
-          <div class="dialer-hint">SIMULATED DIALER · 本机演示，不发起真实通话</div>
+          <div class="dialer-hint" id="dialHint">SYSTEM TELEPHONY · 拨号交给系统电话 App</div>
+        </div>
+        <div class="dialer-quick">
+          <button class="native-chip" id="dialPick" type="button">${Aether.icon('phone')} 从通讯录选择</button>
+          <button class="native-chip" id="dialCopy" type="button">${Aether.icon('copy')} 复制号码</button>
         </div>
         <div class="dialer-grid" id="dialGrid"></div>
         <div class="dialer-actions">
-          <button class="dialer-back" id="dialBack" aria-label="退格">
+          <button class="dialer-back" id="dialBack" type="button" aria-label="退格">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l-7 7 7 7M3 12h18"/></svg>
           </button>
-          <button class="call-btn" id="dialCall" aria-label="拨号">
+          <button class="call-btn" id="dialCall" type="button" aria-label="用系统电话拨号">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h3.2l1.6 4-2.1 1.6a13 13 0 0 0 5.2 5.2l1.6-2.1 4 1.6V17a2.5 2.5 0 0 1-2.7 2.5C9.2 19.1 4.9 14.8 4.5 8.2A2.5 2.5 0 0 1 5 3.5z"/></svg>
           </button>
           <span style="width:50px"></span>
         </div>
-        <div class="dialer-recent" id="dialRecent"></div>
+        <div class="dialer-recent">
+          <div class="native-inline">
+            <span class="dot"></span>
+            <p>网页无法读取系统通话记录。实际拨号、挂断、录音、双卡与运营商线路由系统电话 App 管理。</p>
+          </div>
+        </div>
       `;
       const numEl = root.querySelector('#dialNum');
+      const hintEl = root.querySelector('#dialHint');
       const grid = root.querySelector('#dialGrid');
-      const recent = root.querySelector('#dialRecent');
 
       const keys = [
         ['1', ''], ['2', 'ABC'], ['3', 'DEF'],
@@ -67,11 +143,12 @@
         ['*', ''], ['0', '+'], ['#', '']
       ];
       keys.forEach(([k, l]) => {
-        const b = el('button');
+        const b = document.createElement('button');
         b.type = 'button';
         b.innerHTML = `${k}<small>${l}</small>`;
         b.addEventListener('click', () => {
-          number = (number + k).slice(0, 18);
+          number = (number + k).slice(0, 32);
+          contactName = '';
           renderNumber();
         });
         grid.appendChild(b);
@@ -80,267 +157,119 @@
       function renderNumber() {
         numEl.textContent = number || '输入号码';
         numEl.style.opacity = number ? '1' : '.35';
-      }
-      function renderRecent() {
-        recent.innerHTML = '';
-        const title = el('div', 'sheet-title');
-        title.innerHTML = '<span>CALL RECORDS</span><span class="mono">' + calls.length + '</span>';
-        recent.appendChild(title);
-        if (!calls.length) { recent.appendChild(el('div', 'empty', '暂无通话记录')); return; }
-        calls.slice(0, 6).forEach(c => {
-          const row = el('div', 'list-row');
-          const av = el('span', 'avatar', (c.name || '?').slice(0, 1));
-          av.style.setProperty('--av-a', '#5dffb0');
-          av.style.setProperty('--av-b', '#21d4c2');
-          const main = el('div', 'list-main');
-          main.appendChild(el('strong', '', c.name || c.number));
-          const meta = el('span', '', (c.dir === 'missed' ? '未接 · ' : c.dir === 'out' ? '呼出 · ' : '呼入 · ') + c.number);
-          main.appendChild(meta);
-          const side = el('div', 'list-side');
-          side.appendChild(el('time', '', fmtList(c.ts)));
-          const dur = el('time', '', c.duration ? Math.floor(c.duration / 60) + 'm ' + (c.duration % 60) + 's' : '');
-          side.appendChild(dur);
-          row.append(av, main, side);
-          row.addEventListener('click', () => {
-            number = c.number.replace(/\s/g, '');
-            renderNumber();
-          });
-          recent.appendChild(row);
-        });
-      }
-      function saveCalls() { Aether.store.set('phone.calls', calls); }
-
-      function startCall() {
-        const digits = number.replace(/\s/g, '');
-        if (!digits) { api.toast('请先输入号码'); return; }
-        const name = contacts[digits] || '未知号码';
-        const started = Date.now();
-        const overlay = el('div', 'call-overlay');
-        overlay.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
-            <span class="co-status">SIMULATED CALL · 概念通话</span>
-            <div class="co-orb"><span class="co-avatar">${esc(name.slice(0, 1))}</span></div>
-            <div class="co-name">${esc(name)}</div>
-            <div class="co-num">${esc(number)}</div>
-            <div class="co-timer" id="callTimer">00:00</div>
-            <div class="note mono" style="color:var(--dim-2)">不会真正占用运营商线路</div>
-          </div>
-          <div class="co-actions">
-            <button class="co-btn" id="callMute" title="静音">${Aether.icon('volume')}</button>
-            <button class="co-btn end" id="callEnd" title="挂断">${Aether.icon('phone')}</button>
-            <button class="co-btn" id="callSpk" title="扬声器">${Aether.icon('signal')}</button>
-          </div>
-        `;
-        root.appendChild(overlay);
-        const timerEl = overlay.querySelector('#callTimer');
-        let seconds = 0;
-        const statusEl = overlay.querySelector('.co-status');
-        setTimeout(() => { if (document.body.contains(overlay)) statusEl.textContent = 'CONNECTED · 概念通话中'; }, 1800);
-        callTimer = setInterval(() => {
-          seconds++;
-          timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
-        }, 1000);
-        const endBtn = overlay.querySelector('#callEnd');
-        overlay.querySelector('#callSpk').addEventListener('click', e => { e.currentTarget.classList.toggle('end'); api.toast('扬声器（模拟）'); });
-        overlay.querySelector('#callMute').addEventListener('click', () => api.toast('已静音（模拟）'));
-        endBtn.addEventListener('click', () => {
-          clearInterval(callTimer); callTimer = null;
-          const dur = Math.floor((Date.now() - started) / 1000);
-          calls.unshift({ name, number, duration: dur, ts: Date.now(), dir: 'out' });
-          saveCalls();
-          overlay.remove();
-          renderRecent();
-          api.toast('通话已结束 · 已加入记录');
-        });
+        hintEl.textContent = contactName ? contactName + ' · 拨号交给系统电话 App' : 'SYSTEM TELEPHONY · 拨号交给系统电话 App';
       }
 
-      root.querySelector('#dialBack').addEventListener('click', () => { number = number.slice(0, -1); renderNumber(); });
-      root.querySelector('#dialCall').addEventListener('click', startCall);
+      function dial() {
+        if (!isPhone(number)) {
+          api.toast(number ? '号码格式不正确' : '请先输入号码');
+          return;
+        }
+        launch('tel:' + phoneForUri(number), '系统电话', api);
+      }
+
+      root.querySelector('#dialBack').addEventListener('click', () => {
+        number = number.slice(0, -1);
+        contactName = '';
+        renderNumber();
+      });
+      root.querySelector('#dialCall').addEventListener('click', dial);
+      root.querySelector('#dialPick').addEventListener('click', async () => {
+        const c = await pickContact(api);
+        if (!c) return;
+        number = c.number;
+        contactName = c.name;
+        renderNumber();
+        api.toast(c.name ? '已选择 ' + c.name : '已填入联系人号码');
+      });
+      root.querySelector('#dialCopy').addEventListener('click', () => {
+        if (!number) { api.toast('请先输入号码'); return; }
+        copyText(number).then(() => api.toast('号码已复制')).catch(() => api.toast('复制失败'));
+      });
 
       renderNumber();
-      renderRecent();
-      api.onClose(() => { if (callTimer) { clearInterval(callTimer); callTimer = null; } });
     }
   });
 
   /* ===================== 短信 ===================== */
-  const SMS_SEED = [
-    {
-      id: 'sms-1', name: '林晓', number: '+86 138 0000 1234', unread: 1,
-      av: ['#4dc3ff', '#7a5cff'],
-      msgs: [
-        { me: false, text: '今晚的观测站灯光秀几点开始？', ts: Date.now() - 5400e3 },
-        { me: true, text: '八点整，我在北门等你。', ts: Date.now() - 5200e3 },
-        { me: false, text: '好，带上你的望远镜。', ts: Date.now() - 4900e3 }
-      ]
-    },
-    {
-      id: 'sms-2', name: '运营商通知', number: '10086', unread: 0,
-      av: ['#ffcf6d', '#ff8a3c'],
-      msgs: [
-        { me: false, text: '【AETHER 概念通信】您本月套餐余量充足。（模拟短信）', ts: Date.now() - 86400e3 }
-      ]
-    },
-    {
-      id: 'sms-3', name: '快递小哥', number: '+86 139 0000 8866', unread: 0,
-      av: ['#9dff6a', '#21d4c2'],
-      msgs: [
-        { me: false, text: '您的包裹已放至前台，取件码 73-936。', ts: Date.now() - 172800e3 }
-      ]
-    }
-  ];
-
   Aether.registerApp({
     id: 'messages',
     name: '短信',
-    sub: 'SMS CENTER · 本机模拟',
+    sub: 'SYSTEM SMS BRIDGE · 系统短信',
     icon: 'message',
     accent: '#4dc3ff',
     order: 30,
-    flush: true,
     render(root, api) {
-      let threads = Aether.store.get('messages.threads', SMS_SEED);
-      let current = null;
       root.innerHTML = `
-        <div class="chat-app">
-          <div class="chat-scroll chat-list" id="smsList"></div>
-          <div class="chat-thread" id="smsThread">
-            <div class="thread-head">
-              <button id="smsBack">${Aether.icon('left')}</button>
-              <div class="thread-name"><strong id="smsName"></strong><span id="smsNum"></span></div>
-              <span class="tag">SIM</span>
+        <div class="native-wrap">
+          <div class="native-hero compact">
+            <div class="native-hero-icon" style="--hero-a:#4dc3ff;--hero-b:#7a5cff">${Aether.icon('message')}</div>
+            <div class="native-hero-copy">
+              <span class="native-kicker">SYSTEM SMS BRIDGE</span>
+              <h3>交给系统短信</h3>
+              <p>通过 <span class="mono">sms:</span> 打开手机短信 App，可预填号码与正文；AETHER 不读取或保存系统短信。</p>
             </div>
-            <div class="thread-body" id="smsBody"></div>
-            <div class="composer">
-              <div class="field"><input id="smsInput" placeholder="输入短信（仅本机模拟）" maxlength="300"></div>
-              <button class="send-btn" id="smsSend">${Aether.icon('send')}</button>
+          </div>
+          <div class="card native-card">
+            <div class="native-label">收件人</div>
+            <div class="field">
+              ${Aether.icon('phone')}
+              <input id="smsNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="输入手机号码">
             </div>
+            <div class="native-actions">
+              <button class="btn sm ghost" id="smsPick" type="button">从通讯录选择</button>
+              <button class="btn sm ghost" id="smsInbox" type="button">打开系统短信</button>
+              <button class="btn sm ghost" id="smsCopy" type="button">复制正文</button>
+            </div>
+            <div class="native-label">正文 <span id="smsCount">0 / 480</span></div>
+            <textarea class="native-textarea" id="smsText" maxlength="480" placeholder="输入短信正文（可选）"></textarea>
+            <button class="btn solid native-block" id="smsSend" type="button">${Aether.icon('send')} 打开系统短信并预填</button>
+            <p class="note">正文是否自动填入取决于系统短信 App；若未预填，可复制正文后粘贴。</p>
+          </div>
+          <div class="native-inline">
+            <span class="dot"></span>
+            <p>网页无法读取系统收件箱、发送记录或送达回执。发送动作由系统短信 App 完成。</p>
           </div>
         </div>
       `;
-      const appEl = root.querySelector('.chat-app');
-      const listEl = root.querySelector('#smsList');
-      const bodyEl = root.querySelector('#smsBody');
-      const inputEl = root.querySelector('#smsInput');
+      const numberEl = root.querySelector('#smsNumber');
+      const textEl = root.querySelector('#smsText');
+      const countEl = root.querySelector('#smsCount');
 
-      function save() { Aether.store.set('messages.threads', threads); }
-
-      function renderList() {
-        listEl.innerHTML = '';
-        const brand = el('div', 'chat-brand');
-        brand.innerHTML = '<span class="dot" style="background:var(--acc);box-shadow:0 0 8px var(--acc)"></span>SMS CENTER · 模拟短信 <span class="tag">SIMULATED</span>';
-        listEl.appendChild(brand);
-        const compose = el('div', 'card');
-        compose.style.padding = '10px';
-        compose.style.marginBottom = '10px';
-        compose.innerHTML = `<div class="field"><input id="smsNewNumber" placeholder="新短信：输入号码" inputmode="tel"><button class="btn sm solid" id="smsNewBtn">发短信</button></div>`;
-        listEl.appendChild(compose);
-        compose.querySelector('#smsNewBtn').addEventListener('click', () => {
-          const val = compose.querySelector('#smsNewNumber').value.trim();
-          if (!val) { api.toast('请输入号码'); return; }
-          let t = threads.find(x => x.number.replace(/\s/g, '') === val.replace(/\s/g, ''));
-          if (!t) {
-            t = { id: 'sms-' + Date.now(), name: val, number: val, unread: 0, av: ['#4dc3ff', '#7a5cff'], msgs: [] };
-            threads.unshift(t);
-            save();
-            renderList();
-          }
-          openThread(t);
-        });
-        if (!threads.length) listEl.appendChild(el('div', 'empty', '暂无会话'));
-        threads.forEach(t => {
-          const row = el('div', 'list-row');
-          const av = el('span', 'avatar', (t.name || '?').slice(0, 1));
-          av.style.setProperty('--av-a', t.av[0]);
-          av.style.setProperty('--av-b', t.av[1]);
-          const main = el('div', 'list-main');
-          main.appendChild(el('strong', '', t.name));
-          const last = t.msgs[t.msgs.length - 1];
-          main.appendChild(el('span', '', last ? ((last.me ? '我：' : '') + last.text) : '（暂无消息）'));
-          const side = el('div', 'list-side');
-          side.appendChild(el('time', '', last ? fmtList(last.ts) : ''));
-          if (t.unread) {
-            const b = el('span', 'badge', String(t.unread));
-            b.style.display = 'inline-grid';
-            b.style.marginTop = '4px';
-            side.appendChild(b);
-          }
-          row.append(av, main, side);
-          row.addEventListener('click', () => openThread(t));
-          listEl.appendChild(row);
-        });
+      function syncCount() {
+        countEl.textContent = textEl.value.length + ' / 480';
       }
 
-      function renderThread() {
-        if (!current) return;
-        bodyEl.innerHTML = '';
-        current.msgs.forEach(m => {
-          const wrap = el('div', 'msg' + (m.me ? ' own' : ''));
-          if (!m.me) {
-            const av = el('span', 'mini-av', (current.name || '?').slice(0, 1));
-            av.style.setProperty('--av-a', current.av[0]);
-            av.style.setProperty('--av-b', current.av[1]);
-            wrap.appendChild(av);
-          }
-          const bubble = el('div', 'bubble');
-          bubble.appendChild(document.createTextNode(m.text));
-          bubble.appendChild(el('time', '', fmtClock(m.ts)));
-          wrap.appendChild(bubble);
-          bodyEl.appendChild(wrap);
-        });
-        bodyEl.scrollTop = bodyEl.scrollHeight;
+      function openComposer() {
+        const number = normalizePhone(numberEl.value);
+        if (!isPhone(number)) {
+          api.toast('请输入有效号码');
+          numberEl.focus();
+          return;
+        }
+        launch(smsUri(number, textEl.value.trim()), '系统短信', api);
       }
 
-      function openThread(t) {
-        current = t;
-        t.unread = 0;
-        save();
-        root.querySelector('#smsName').textContent = t.name;
-        root.querySelector('#smsNum').textContent = t.number + ' · 本机模拟，不真实发送';
-        appEl.classList.add('in-thread');
-        renderThread();
-        renderList();
-      }
-
-      function closeThread() {
-        appEl.classList.remove('in-thread');
-        current = null;
-        renderList();
-      }
-
-      function send() {
-        if (!current) return;
-        const text = inputEl.value.trim();
-        if (!text) return;
-        current.msgs.push({ me: true, text, ts: Date.now() });
-        inputEl.value = '';
-        save();
-        renderThread();
-        renderList();
-        const target = current;
-        api.toast('已模拟发送');
-        const replies = ['收到，我这边没问题。', '稍等，我查一下再回你。', '好，晚点电话聊。', 'OK，已记录。'];
-        const replyTimer = setTimeout(() => {
-          if (!target.msgs) return;
-          target.msgs.push({ me: false, text: replies[Math.floor(Math.random() * replies.length)], ts: Date.now() });
-          save();
-          if (current === target) renderThread();
-          renderList();
-        }, 1200 + Math.random() * 1400);
-        timeouts.push(replyTimer);
-      }
-      const timeouts = [];
-      root.querySelector('#smsBack').addEventListener('click', closeThread);
-      root.querySelector('#smsSend').addEventListener('click', send);
-      inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-
-      renderList();
-      api.onClose(() => timeouts.forEach(t => clearTimeout(t)));
+      numberEl.addEventListener('input', () => { numberEl.value = normalizePhone(numberEl.value); });
+      textEl.addEventListener('input', syncCount);
+      root.querySelector('#smsPick').addEventListener('click', async () => {
+        const c = await pickContact(api);
+        if (!c) return;
+        numberEl.value = c.number;
+        api.toast(c.name ? '已选择 ' + c.name : '已填入联系人号码');
+      });
+      root.querySelector('#smsInbox').addEventListener('click', () => launch('sms:', '系统短信', api));
+      root.querySelector('#smsCopy').addEventListener('click', () => {
+        if (!textEl.value.trim()) { api.toast('请先输入短信正文'); return; }
+        copyText(textEl.value.trim()).then(() => api.toast('正文已复制')).catch(() => api.toast('复制失败'));
+      });
+      root.querySelector('#smsSend').addEventListener('click', openComposer);
+      syncCount();
     }
   });
 
-  /* ===================== 微信 / QQ 共用引擎 ===================== */
-  function makeChatApp(cfg) {
+  /* ===================== 微信 / QQ 原生入口 ===================== */
+  function makeNativeApp(cfg) {
     return {
       id: cfg.id,
       name: cfg.name,
@@ -348,211 +277,130 @@
       icon: cfg.icon,
       accent: cfg.accent,
       order: cfg.order,
-      flush: true,
       render(root, api) {
-        let threads = Aether.store.get(cfg.storeKey, cfg.seed);
-        let current = null;
-        const timeouts = [];
-        root.style.setProperty('--acc', cfg.accent);
-        root.style.setProperty('--acc2', cfg.accent2);
         root.innerHTML = `
-          <div class="chat-app ${cfg.theme}">
-            <div class="chat-scroll chat-list" id="ctList"></div>
-            <div class="chat-thread" id="ctThread">
-              <div class="thread-head">
-                <button id="ctBack">${Aether.icon('left')}</button>
-                <div class="thread-name"><strong id="ctName"></strong><span id="ctSub"></span></div>
-                <span class="tag">SIM</span>
+          <div class="native-wrap">
+            <div class="native-hero">
+              <div class="native-hero-icon" style="--hero-a:${cfg.accent};--hero-b:${cfg.accent2}">${Aether.icon(cfg.icon)}</div>
+              <span class="native-kicker">NATIVE APP LINK</span>
+              <h3>${esc(cfg.title)}</h3>
+              <p>${esc(cfg.description)}</p>
+            </div>
+            <div class="card native-card">
+              <button class="btn solid native-block" id="openNative" type="button">${Aether.icon('external')} 打开官方${esc(cfg.name)}</button>
+              <a class="btn ghost native-block" href="${cfg.website}" target="_blank" rel="noopener noreferrer">未安装？打开${esc(cfg.name)}官网</a>
+              <div class="native-divider"><span>或通过系统分享发送文字</span></div>
+              <textarea class="native-textarea" id="shareDraft" maxlength="600" placeholder="输入要分享的文字（不会发送或保存）"></textarea>
+              <div class="native-actions">
+                <button class="btn sm ghost" id="shareBtn" type="button">${Aether.icon('send')} 调用系统分享</button>
+                <button class="btn sm ghost" id="copyDraft" type="button">${Aether.icon('copy')} 复制草稿</button>
               </div>
-              <div class="thread-body" id="ctBody"></div>
-              <div class="composer">
-                <div class="field"><input id="ctInput" placeholder="输入消息（仅本机模拟）" maxlength="400"></div>
-                <button class="send-btn" id="ctSend">${Aether.icon('send')}</button>
-              </div>
+              <p class="note">系统分享面板由手机提供，可选择已安装的${esc(cfg.name)}。网页无法读取聊天记录、选择具体聊天或代发消息。</p>
+            </div>
+            <div class="native-inline">
+              <span class="dot"></span>
+              <p>AETHER 不是${esc(cfg.name)}客户端，也不连接腾讯服务；此页面只负责唤起官方 App 或调用系统分享。</p>
             </div>
           </div>
         `;
-        const appEl = root.querySelector('.chat-app');
-        const listEl = root.querySelector('#ctList');
-        const bodyEl = root.querySelector('#ctBody');
-        const inputEl = root.querySelector('#ctInput');
-        const nameEl = root.querySelector('#ctName');
-        const subEl = root.querySelector('#ctSub');
-
-        const save = () => Aether.store.set(cfg.storeKey, threads);
-
-        function renderList() {
-          listEl.innerHTML = '';
-          const brand = el('div', 'chat-brand');
-          brand.innerHTML = `<span class="dot"></span>${esc(cfg.brand)} <span class="tag">概念模拟 · 非官方客户端</span>`;
-          listEl.appendChild(brand);
-          threads.forEach(t => {
-            const row = el('div', 'list-row');
-            const av = el('span', 'avatar', (t.name || '?').slice(0, 1));
-            av.style.setProperty('--av-a', t.av[0]);
-            av.style.setProperty('--av-b', t.av[1]);
-            const main = el('div', 'list-main');
-            main.appendChild(el('strong', '', t.name));
-            const last = t.msgs[t.msgs.length - 1];
-            main.appendChild(el('span', '', last ? (last.me ? '我：' : '') + last.text : '（暂无消息）'));
-            const side = el('div', 'list-side');
-            side.appendChild(el('time', '', last ? fmtList(last.ts) : ''));
-            if (t.unread) {
-              const b = el('span', 'badge', String(t.unread));
-              b.style.marginTop = '4px';
-              side.appendChild(b);
-            }
-            row.append(av, main, side);
-            row.addEventListener('click', () => openThread(t));
-            listEl.appendChild(row);
-          });
-        }
-
-        function renderThread() {
-          if (!current) return;
-          bodyEl.innerHTML = '';
-          current.msgs.forEach(m => {
-            const wrap = el('div', 'msg' + (m.me ? ' own' : ''));
-            if (!m.me) {
-              const av = el('span', 'mini-av', (current.name || '?').slice(0, 1));
-              av.style.setProperty('--av-a', current.av[0]);
-              av.style.setProperty('--av-b', current.av[1]);
-              wrap.appendChild(av);
-            }
-            const bubble = el('div', 'bubble');
-            bubble.appendChild(document.createTextNode(m.text));
-            bubble.appendChild(el('time', '', fmtClock(m.ts)));
-            wrap.appendChild(bubble);
-            bodyEl.appendChild(wrap);
-          });
-          bodyEl.scrollTop = bodyEl.scrollHeight;
-        }
-
-        function openThread(t) {
-          current = t;
-          t.unread = 0;
-          save();
-          nameEl.textContent = t.name;
-          subEl.textContent = cfg.onlineLabel;
-          appEl.classList.add('in-thread');
-          renderThread();
-          renderList();
-        }
-
-        function closeThread() {
-          appEl.classList.remove('in-thread');
-          current = null;
-          renderList();
-        }
-
-        function send() {
-          if (!current) return;
-          const text = inputEl.value.trim();
-          if (!text) return;
-          current.msgs.push({ me: true, text, ts: Date.now() });
-          inputEl.value = '';
-          save();
-          renderThread();
-          renderList();
-          const target = current;
-          const typing = el('div', 'msg typing');
-          const bubble = el('div', 'bubble', '· · ·');
-          typing.appendChild(bubble);
-          bodyEl.appendChild(typing);
-          bodyEl.scrollTop = bodyEl.scrollHeight;
-          const replyTimer = setTimeout(() => {
-            if (typing.parentNode) typing.remove();
-            target.msgs.push({ me: false, text: cfg.replies[Math.floor(Math.random() * cfg.replies.length)], ts: Date.now() });
-            save();
-            if (current === target) renderThread();
-            renderList();
-          }, 1500 + Math.random() * 1600);
-          timeouts.push(replyTimer);
-        }
-
-        root.querySelector('#ctBack').addEventListener('click', closeThread);
-        root.querySelector('#ctSend').addEventListener('click', send);
-        inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-        renderList();
-        api.onClose(() => timeouts.forEach(t => clearTimeout(t)));
+        const wrap = root.querySelector('.native-wrap');
+        wrap.style.setProperty('--acc', cfg.accent);
+        wrap.style.setProperty('--acc2', cfg.accent2);
+        root.querySelector('#openNative').addEventListener('click', () => {
+          launch(cfg.scheme, '官方' + cfg.name, api);
+        });
+        root.querySelector('#shareBtn').addEventListener('click', () => {
+          shareText(root.querySelector('#shareDraft').value.trim(), api, cfg.name);
+        });
+        root.querySelector('#copyDraft').addEventListener('click', () => {
+          const text = root.querySelector('#shareDraft').value.trim();
+          if (!text) { api.toast('先输入要分享的文字'); return; }
+          copyText(text).then(() => api.toast('草稿已复制')).catch(() => api.toast('复制失败'));
+        });
       }
     };
   }
 
-  Aether.registerApp(makeChatApp({
+  function makeAlipayApp() {
+    return {
+      id: 'alipay',
+      name: '支付宝',
+      sub: 'NATIVE APP LINK · 官方支付宝',
+      icon: 'alipay',
+      accent: '#1677ff',
+      order: 55,
+      render(root, api) {
+        root.innerHTML = `
+          <div class="native-wrap">
+            <div class="native-hero compact">
+              <div class="native-hero-icon" style="--hero-a:#1677ff;--hero-b:#4fd1ff">${Aether.icon('alipay')}</div>
+              <div class="native-hero-copy">
+                <span class="native-kicker">NATIVE APP LINK</span>
+                <h3>支付宝在系统里</h3>
+                <p>网页无法登录或代付。此入口会唤起已安装的官方支付宝 App。</p>
+              </div>
+            </div>
+            <div class="card native-card">
+              <button class="btn solid native-block" id="alipayOpen" type="button">${Aether.icon('external')} 打开官方支付宝</button>
+              <button class="btn sm ghost native-block" id="alipayScan" type="button">${Aether.icon('search')} 尝试打开扫一扫（实验）</button>
+              <a class="btn ghost native-block" href="https://www.alipay.com/" target="_blank" rel="noopener noreferrer">未安装？打开支付宝官网</a>
+              <div class="native-divider"><span>打开后可使用</span></div>
+              <div class="alipay-tools">
+                <div class="alipay-tool"><b>扫一扫</b><span>SCAN</span></div>
+                <div class="alipay-tool"><b>付款码</b><span>PAY</span></div>
+                <div class="alipay-tool"><b>收款码</b><span>COLLECT</span></div>
+                <div class="alipay-tool"><b>转账</b><span>TRANSFER</span></div>
+                <div class="alipay-tool"><b>账单</b><span>BILLS</span></div>
+                <div class="alipay-tool"><b>出行</b><span>TRANSIT</span></div>
+              </div>
+              <p class="note">扫一扫快捷链接为实验性入口，可能随支付宝版本失效；若未跳转，请在支付宝 App 内手动打开。网页不读取余额、账单、订单或支付结果，也不能代付。</p>
+            </div>
+            <div class="native-inline">
+              <span class="dot"></span>
+              <p>AETHER 不是支付宝客户端，也不连接支付宝或蚂蚁集团服务；此页面只负责唤起官方 App。</p>
+            </div>
+          </div>
+        `;
+        const wrap = root.querySelector('.native-wrap');
+        wrap.style.setProperty('--acc', '#1677ff');
+        wrap.style.setProperty('--acc2', '#4fd1ff');
+        root.querySelector('#alipayOpen').addEventListener('click', () => {
+          launch('alipays://', '官方支付宝', api);
+        });
+        root.querySelector('#alipayScan').addEventListener('click', () => {
+          launch('alipayqr://platformapi/startapp?saId=10000007', '支付宝扫一扫', api, '已请求打开支付宝扫一扫；该入口为实验性，若未跳转请在支付宝内手动打开');
+        });
+      }
+    };
+  }
+
+  Aether.registerApp(makeNativeApp({
     id: 'wechat',
     name: '微信',
-    sub: 'WECHAT 概念模拟 · 本地聊天',
-    brand: 'WECHAT · 概念模拟',
+    sub: 'NATIVE APP LINK · 官方微信',
     icon: 'wechat',
     accent: '#2fe07a',
     accent2: '#9dff6a',
     order: 40,
-    theme: 'wechat',
-    storeKey: 'wechat.threads',
-    onlineLabel: '概念模拟 · 消息只存在本机',
-    replies: ['收到～', '哈哈哈哈，确实。', '我看看日程，回头跟你说。', '好，晚点聊。'],
-    seed: [
-      {
-        id: 'wx-1', name: '文件传输助手', av: ['#2fe07a', '#21d4c2'], unread: 0,
-        msgs: [
-          { me: false, text: '这是 AETHER OS 内置的微信概念界面，仅用于展示，不是官方客户端。', ts: Date.now() - 7200e3 },
-          { me: true, text: '明白，消息只保存在本机。', ts: Date.now() - 7100e3 },
-          { me: false, text: 'Android 上可接入真 Linux；需要真正的微信请安装官方 App。', ts: Date.now() - 7000e3 }
-        ]
-      },
-      {
-        id: 'wx-2', name: '星舰指挥部', av: ['#2fe07a', '#7a5cff'], unread: 2,
-        msgs: [
-          { me: false, text: '今晚 21:00 的轨道窗口别错过。', ts: Date.now() - 3600e3 },
-          { me: false, text: '我带了热成像仪～', ts: Date.now() - 3500e3 },
-          { me: true, text: '收到，准时到。', ts: Date.now() - 3400e3 }
-        ]
-      },
-      {
-        id: 'wx-3', name: '家族群', av: ['#ffcf6d', '#ff6ad5'], unread: 0,
-        msgs: [
-          { me: false, text: '周末回家吃饭吗？', ts: Date.now() - 86400e3 },
-          { me: true, text: '回，给你们带礼物。', ts: Date.now() - 86000e3 }
-        ]
-      }
-    ]
+    scheme: 'weixin://',
+    website: 'https://weixin.qq.com/',
+    title: '微信在系统里',
+    description: '网页版无法直接登录或代发微信消息。此入口会唤起已安装的官方微信 App；也可以通过系统分享把文字交给微信。'
   }));
 
-  Aether.registerApp(makeChatApp({
+  Aether.registerApp(makeNativeApp({
     id: 'qq',
     name: 'QQ',
-    sub: 'QQ 概念模拟 · 本地聊天',
-    brand: 'QQ · 概念模拟',
+    sub: 'NATIVE APP LINK · 官方 QQ',
     icon: 'qq',
     accent: '#3fa9ff',
     accent2: '#8a5bff',
     order: 50,
-    theme: 'qq',
-    storeKey: 'qq.threads',
-    onlineLabel: '概念模拟 · 消息只存在本机',
-    replies: ['+1', '开黑等我十分钟', '群公告已看', '这波可以'],
-    seed: [
-      {
-        id: 'qq-1', name: '系统通知', av: ['#3fa9ff', '#8a5bff'], unread: 0,
-        msgs: [
-          { me: false, text: 'AETHER OS 概念版 QQ 已就绪。此界面仅作演示，不含真实 QQ 服务。', ts: Date.now() - 5400e3 }
-        ]
-      },
-      {
-        id: 'qq-2', name: '开黑小队', av: ['#3fa9ff', '#21d4c2'], unread: 3,
-        msgs: [
-          { me: false, text: '今晚八点，老地方。', ts: Date.now() - 2400e3 },
-          { me: false, text: '我玩辅助。', ts: Date.now() - 2300e3 },
-          { me: true, text: '等我十分钟。', ts: Date.now() - 2200e3 }
-        ]
-      },
-      {
-        id: 'qq-3', name: '班级频道', av: ['#ffcf6d', '#ff6a8a'], unread: 0,
-        msgs: [
-          { me: false, text: '实验报告周五前提交。', ts: Date.now() - 172800e3 }
-        ]
-      }
-    ]
+    scheme: 'mqq://',
+    website: 'https://im.qq.com/',
+    title: 'QQ 在系统里',
+    description: '网页版无法直接登录或代发 QQ 消息。此入口会唤起已安装的官方 QQ App；也可以通过系统分享把文字交给 QQ。'
   }));
+
+  Aether.registerApp(makeAlipayApp());
 })();

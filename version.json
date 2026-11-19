@@ -1,0 +1,11 @@
+{
+  "version": "1.1.0",
+  "build": "2026.11.19",
+  "released": "2026-11-19",
+  "channel": "stable",
+  "notes": "文件、办公、13 语言调试（含 Kotlin / Swift）、Termux / iSH 主机命令、相机、相册、真实省电，以及 GitHub / GitCode 双平台更新检查。",
+  "platforms": {
+    "github": "https://github.com/IAMMEZSH/aether-os/releases/latest",
+    "gitcode": "https://gitcode.com/gcw_So3EkhfR/aether-os/releases"
+  }
+}

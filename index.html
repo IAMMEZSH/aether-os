@@ -15,6 +15,8 @@
 <link rel="apple-touch-icon" href="icons/icon-1024.png">
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/files.css">
+<link rel="stylesheet" href="css/office.css">
 </head>
 <body data-accent="cyan" data-wall="aurora">
 
@@ -42,7 +44,8 @@
     <span class="sb-wifi" id="sbwifi" title="WiFi">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8.8C7.6 3.7 16.4 3.7 22 8.8"/><path d="M5.2 12.4c4-3.6 9.6-3.6 13.6 0"/><path d="M8.5 15.9c2.2-2 4.8-2 7 0"/><circle cx="12" cy="19.3" r="1.1" fill="currentColor" stroke="none"/></svg>
     </span>
-    <span class="sb-battery" id="sbbattery"><b>87</b><i></i></span>
+    <span class="sb-saver hidden" id="sbsaver" title="省电模式">省电</span>
+    <span class="sb-battery" id="sbbattery"><b>--</b><i></i></span>
     <span class="sb-clock" id="sbclock">--:--</span>
   </div>
 </div>
@@ -52,7 +55,7 @@
   <div class="boot-frame">
     <div class="boot-head">
       <span class="mono">AETHER BOOTLOADER · CONCEPT</span>
-      <span class="mono" id="bootbuild">BUILD 2026.11.18</span>
+      <span class="mono" id="bootbuild">BUILD 2026.11.19</span>
     </div>
     <div class="boot-core">
       <div class="hex-logo" aria-hidden="true">
@@ -87,7 +90,7 @@
 <section id="lock" class="lock hidden">
   <div class="lock-head">
     <span class="chip" id="lockchip-net"><i class="dot"></i> WEB CORE</span>
-    <span class="chip" id="lockchip-bat">87%</span>
+    <span class="chip" id="lockchip-bat">--</span>
   </div>
   <div class="lock-center">
     <div class="lock-orbit" aria-hidden="true">
@@ -141,7 +144,7 @@
       </div>
       <div class="hud-card">
         <span class="hud-label">POWER</span>
-        <strong id="hudbat">87%</strong>
+        <strong id="hudbat">--</strong>
         <em id="hudbat-sub">BATTERY API</em>
       </div>
     </div>
@@ -149,7 +152,7 @@
 
   <section class="apps-label">
     <h2>应用程序</h2>
-    <span class="mono" id="appcount">14 APPS</span>
+    <span class="mono" id="appcount">16 APPS</span>
   </section>
   <section id="appgrid" class="app-grid" aria-label="应用列表"></section>
   <div class="home-spacer"></div>
@@ -181,5 +184,7 @@
 <script src="js/terminal.js" defer></script>
 <script src="js/apps-social.js" defer></script>
 <script src="js/apps-tools.js" defer></script>
+<script src="js/files.js" defer></script>
+<script src="js/office.js" defer></script>
 </body>
 </html>

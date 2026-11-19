@@ -32,9 +32,13 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
-VERSION = "1.0.0"
+import files as file_bridge
+import gallery
+import studio
+
+VERSION = "1.1.0"
 ROOT = Path(__file__).resolve().parent.parent
 TOKEN_FILE = Path(__file__).resolve().parent / ".aether_token"
 
@@ -43,6 +47,8 @@ PORT = int(os.environ.get("AETHER_PORT") or "8787")
 ALLOW_LAN = os.environ.get("AETHER_ALLOW_LAN", "0") == "1"
 
 MAX_BODY = 16 * 1024
+MAX_STUDIO_BODY = 192 * 1024
+MAX_FILE_BODY = 64 * 1024 * 1024
 MAX_OUTPUT = 128 * 1024
 CMD_TIMEOUT = 25
 MAX_CONCURRENCY = 2
@@ -110,7 +116,8 @@ def shquote(value: str) -> str:
     return "'" + value.replace("'", "'\\''") + "'"
 
 
-def run_command(distro: str, command: str, cwd: str):
+def run_command(distro: str, command: str, cwd: str, timeout: int = None, scope: str = "distro"):
+    limit = int(timeout or CMD_TIMEOUT)
     started = time.time()
     marker = "__AETHER_CWD_" + secrets.token_hex(4) + "__"
     safe_cwd = shquote(cwd if cwd.startswith("/") and "\n" not in cwd else HOME)
@@ -121,7 +128,17 @@ def run_command(distro: str, command: str, cwd: str):
     )
     env = dict(os.environ)
     env.setdefault("TERM", "dumb")
-    if MODE == "ish":
+    if scope == "host":
+        if MODE == "ish":
+            argv = ["/bin/sh", "-lc", script]
+            distro = "alpine"
+        elif MODE == "termux":
+            bash = shutil.which("bash") or "/system/bin/sh"
+            argv = [bash, "-lc", script]
+            distro = "termux"
+        else:
+            return {"ok": False, "error": "当前环境不是 Termux/iSH，不能执行主机命令", "code": 501}
+    elif MODE == "ish":
         if distro != "alpine":
             return {"ok": False, "error": "iSH 只提供 Alpine 用户空间", "code": 400}
         argv = ["/bin/sh", "-lc", script]
@@ -140,7 +157,7 @@ def run_command(distro: str, command: str, cwd: str):
             argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=CMD_TIMEOUT,
+            timeout=limit,
             env=env,
             cwd=str(ROOT),
         )
@@ -152,7 +169,7 @@ def run_command(distro: str, command: str, cwd: str):
         raw = exc.output or b""
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8", "replace")
-        out = raw + "\n[bridge] 命令超过 %d 秒，已中止。\n" % CMD_TIMEOUT
+        out = raw + "\n[bridge] 命令超过 %d 秒，已中止。\n" % limit
     except FileNotFoundError as exc:
         return {"ok": False, "error": "找不到执行器：%s" % exc, "code": 500}
     except Exception as exc:  # noqa: BLE001 - 边界服务，统一返回错误
@@ -180,6 +197,7 @@ def run_command(distro: str, command: str, cwd: str):
         "code": code,
         "ms": int((time.time() - started) * 1000),
         "distro": distro,
+        "scope": "host" if scope == "host" else "distro",
         "truncated": truncated,
         "timed_out": timed_out,
     }
@@ -239,6 +257,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "content-type, x-aether-token")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
         try:
             self.wfile.write(raw)
@@ -265,6 +286,22 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
+    def _send_bytes(self, status, data: bytes, mime: str, extra_headers=None, cache="private, max-age=1800"):
+        self.send_response(status)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", cache)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        if self.command != "HEAD":
+            try:
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
     def _safe_static_path(self):
         parsed = urlparse(self.path)
         rel = unquote(parsed.path)
@@ -283,6 +320,22 @@ class Handler(BaseHTTPRequestHandler):
         return candidate if candidate.is_file() else None
 
     # ---------- HTTP 方法 ----------
+    def do_OPTIONS(self):
+        parsed = urlparse(self.path)
+        if not parsed.path.startswith("/api/"):
+            self.send_error(404, "Not found")
+            return
+        if not self._host_is_local():
+            self._send_json(403, {"ok": False, "error": "仅允许本机访问"})
+            return
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "content-type, x-aether-token")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
@@ -300,7 +353,70 @@ class Handler(BaseHTTPRequestHandler):
                 "installed": distros,
                 "home": HOME,
                 "python": platform.python_version(),
+                "studio": True,
+                "gallery": True,
+                "files": True,
+                "hostShell": "termux" if MODE == "termux" else "ish" if MODE == "ish" else "",
                 "auth": self._token_ok(),
+            })
+            return
+        if parsed.path in ("/api/files/roots", "/api/files/list", "/api/files/read"):
+            if not self._host_is_local():
+                self._send_json(403, {"ok": False, "error": "仅允许本机访问"})
+                return
+            if not self._token_ok():
+                self._send_json(401, {"ok": False, "error": "令牌无效或缺失"})
+                return
+            query = parse_qs(parsed.query)
+            if parsed.path == "/api/files/roots":
+                self._send_json(200, file_bridge.roots(MODE))
+                return
+            root_id = (query.get("root") or [""])[0]
+            rel = (query.get("path") or [""])[0]
+            if parsed.path == "/api/files/list":
+                hidden = (query.get("hidden") or ["0"])[0] in ("1", "true", "yes")
+                result = file_bridge.list_dir(MODE, root_id, rel, hidden=hidden)
+                if not result.get("ok"):
+                    status = result.get("code") if isinstance(result.get("code"), int) else 500
+                    self._send_json(status, result)
+                    return
+                self._send_json(200, result)
+                return
+            result = file_bridge.read_file(MODE, root_id, rel)
+            if not result.get("ok"):
+                status = result.get("code") if isinstance(result.get("code"), int) else 500
+                self._send_json(status, result)
+                return
+            safe_name = "".join(ch for ch in str(result["name"]) if ch not in '"\r\n\\').strip() or "aether-file"
+            ascii_name = safe_name.encode("ascii", "ignore").decode("ascii").strip() or "aether-file"
+            self._send_bytes(200, result["data"], result["mime"], {
+                "Content-Disposition": "inline; filename=\"%s\"; filename*=UTF-8''%s"
+                % (ascii_name, quote(safe_name, safe="")),
+            }, cache="no-store")
+            return
+        if parsed.path in ("/api/gallery/list", "/api/gallery/file"):
+            if not self._host_is_local():
+                self._send_json(403, {"ok": False, "error": "仅允许本机访问"})
+                return
+            if not self._token_ok():
+                self._send_json(401, {"ok": False, "error": "令牌无效或缺失"})
+                return
+            query = parse_qs(parsed.query)
+            if parsed.path == "/api/gallery/list":
+                refresh = (query.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                self._send_json(200, gallery.list_images(MODE, refresh=refresh))
+                return
+            value = (query.get("id") or [""])[0]
+            result = gallery.read_image(MODE, value)
+            if not result.get("ok"):
+                status = result.get("code") if isinstance(result.get("code"), int) else 500
+                self._send_json(status, result)
+                return
+            safe_name = "".join(ch for ch in str(result["name"]) if ch not in '"\r\n\\')
+            ascii_name = safe_name.encode("ascii", "ignore").decode("ascii") or "aether-image"
+            self._send_bytes(200, result["data"], result["mime"], {
+                "Content-Disposition": "inline; filename=\"%s\"; filename*=UTF-8''%s"
+                % (ascii_name, quote(safe_name, safe="")),
             })
             return
         if parsed.path.startswith("/api/"):
@@ -326,9 +442,49 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(target.stat().st_size))
         self.end_headers()
 
+    def _linux_exec_for(self, distro):
+        def execute(command, cwd, timeout):
+            limit = min(int(timeout or CMD_TIMEOUT) + 10, 180)
+            return run_command(distro, command, cwd, timeout=limit)
+        return execute
+
+    def _handle_studio(self, body):
+        distro = str(body.get("distro") or ("alpine" if MODE == "ish" else "ubuntu")).strip()
+        action = str(body.get("action") or "run").strip().lower()
+        linux_exec = self._linux_exec_for(distro)
+        if action == "probe":
+            result = studio.probe_studio(MODE, distro, linux_exec=linux_exec)
+            self._send_json(200, result)
+            return
+        if action not in ("run", "debug"):
+            self._send_json(400, {"ok": False, "error": "未知操作：%s" % action})
+            return
+        if not SEMAPHORE.acquire(blocking=False):
+            self._send_json(429, {"ok": False, "error": "并发任务过多，请稍后再试"})
+            return
+        try:
+            result = studio.run_studio(
+                body.get("lang"),
+                body.get("code"),
+                action,
+                body.get("breakpoint"),
+                MODE,
+                distro,
+                linux_exec=linux_exec,
+                timeout=body.get("timeout") or 90,
+            )
+        finally:
+            SEMAPHORE.release()
+        if not result.get("ok"):
+            status = result.get("code") if isinstance(result.get("code"), int) and 400 <= result["code"] < 600 else 500
+            self._send_json(status, result)
+            return
+        self._send_json(200, result)
+
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/api/exec":
+        if parsed.path not in ("/api/exec", "/api/studio", "/api/files/write",
+                               "/api/files/mkdir", "/api/files/rename", "/api/files/delete"):
             self._send_json(404, {"ok": False, "error": "未知接口"})
             return
         if not self._host_is_local():
@@ -337,11 +493,36 @@ class Handler(BaseHTTPRequestHandler):
         if not self._token_ok():
             self._send_json(401, {"ok": False, "error": "令牌无效或缺失"})
             return
+        if parsed.path == "/api/files/write":
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                length = 0
+            if length < 0 or length > MAX_FILE_BODY:
+                self._send_json(400, {"ok": False, "error": "文件超过 64 MB"})
+                return
+            try:
+                data = self.rfile.read(length)
+            except OSError as exc:
+                self._send_json(400, {"ok": False, "error": "上传中断：%s" % exc})
+                return
+            if len(data) != length:
+                self._send_json(400, {"ok": False, "error": "上传不完整"})
+                return
+            query = parse_qs(parsed.query)
+            root_id = (query.get("root") or [""])[0]
+            rel = (query.get("path") or [""])[0]
+            overwrite = (query.get("overwrite") or ["0"])[0] in ("1", "true", "yes")
+            result = file_bridge.write_file(MODE, root_id, rel, data, overwrite=overwrite)
+            status = 200 if result.get("ok") else (result.get("code") if isinstance(result.get("code"), int) else 500)
+            self._send_json(status, result)
+            return
+        limit = MAX_STUDIO_BODY if parsed.path == "/api/studio" else MAX_BODY
         try:
             length = int(self.headers.get("Content-Length") or "0")
         except ValueError:
             length = 0
-        if length <= 0 or length > MAX_BODY:
+        if length <= 0 or length > limit:
             self._send_json(400, {"ok": False, "error": "请求体为空或过大"})
             return
         try:
@@ -350,7 +531,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": "JSON 解析失败"})
             return
 
+        if parsed.path.startswith("/api/files/"):
+            root_id = str(body.get("root") or "")
+            rel = str(body.get("path") or "")
+            if parsed.path == "/api/files/mkdir":
+                result = file_bridge.mkdir(MODE, root_id, rel)
+            elif parsed.path == "/api/files/rename":
+                result = file_bridge.rename(MODE, root_id, rel, str(body.get("name") or ""))
+            elif parsed.path == "/api/files/delete":
+                result = file_bridge.delete(MODE, root_id, rel, recursive=bool(body.get("recursive")))
+            else:
+                result = {"ok": False, "error": "未知文件操作", "code": 404}
+            status = 200 if result.get("ok") else (result.get("code") if isinstance(result.get("code"), int) else 500)
+            self._send_json(status, result)
+            return
+
+        if parsed.path == "/api/studio":
+            self._handle_studio(body)
+            return
+
         distro = str(body.get("distro") or ("alpine" if MODE == "ish" else "ubuntu")).strip()
+        scope = str(body.get("scope") or "distro").strip().lower()
+        if scope not in ("distro", "host"):
+            self._send_json(400, {"ok": False, "error": "未知执行范围"})
+            return
         command = str(body.get("cmd") or "").strip()
         cwd = str(body.get("cwd") or HOME).strip()
         if not command:
@@ -366,7 +570,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(429, {"ok": False, "error": "并发命令过多，请稍后再试"})
             return
         try:
-            result = run_command(distro, command, cwd)
+            result = run_command(distro, command, cwd, scope=scope)
         finally:
             SEMAPHORE.release()
 

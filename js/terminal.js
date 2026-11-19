@@ -10,7 +10,7 @@
   const d = c => ({ t: 'd', c });
   const VFS = d({
     home: d({
-      tensaint: d({
+      aether: d({
         'welcome.txt': f(
           '欢迎来到 AETHER OS 概念终端。\n\n' +
           '· 本终端默认运行在浏览器沙盒中，命令与文件均为模拟。\n' +
@@ -26,19 +26,19 @@
       })
     }),
     etc: d({
-      'aether-release': f('AETHER OS 1.0.0 (concept)\nID=aether\nPRETTY_NAME="AETHER OS 1.0.0 Concept"\nHOME_URL="local://aether"\n'),
+      'aether-release': f('AETHER OS 1.1.0 (concept)\nID=aether\nPRETTY_NAME="AETHER OS 1.1.0 Concept"\nHOME_URL="local://aether"\n'),
       hostname: f('aether\n'),
-      'os-release': f('NAME="AETHER OS"\nVERSION="1.0.0 concept"\nID_LIKE="linux"\n')
+      'os-release': f('NAME="AETHER OS"\nVERSION="1.1.0 concept"\nID_LIKE="linux"\n')
     }),
     var: d({
       log: d({ 'aether.log': f('[boot] web compositor started\n[net] navigator.onLine watched\n[bridge] optional: termux proot-distro\n') })
     }),
     usr: d({ bin: d({}) }),
     sdcard: d({ DCIM: d({}), Download: d({}) }),
-    proc: d({ version: f('web-virtual 1.0 (concept-sandbox)\n') })
+    proc: d({ version: f('web-virtual 1.1.0 (concept-sandbox)\n') })
   });
 
-  const RO_HOME = '/home/tensaint';
+  const RO_HOME = '/home/aether';
 
   function resolvePath(cwd, p) {
     if (!p) return cwd;
@@ -77,7 +77,7 @@
       if (p.startsWith(RO_HOME + '/')) return '~' + p.slice(RO_HOME.length);
       return p;
     }
-    return 'C:\\Users\\TENSAINT';
+    return 'C:\\Users\\aether';
   }
 
   /* ---------------- 命令帮助 ---------------- */
@@ -93,7 +93,7 @@
       ['neofetch', '系统信息卡片'],
       ['ping / nmap', '沙盒模拟网络工具（不扫描真实目标）'],
       ['apt / sudo / chmod', '演示输出'],
-      ['open <app>', '启动应用：terminal phone messages wechat qq browser office code map media photos notes settings'],
+      ['open <app>', '启动应用：terminal phone messages wechat qq alipay browser office code map media photos notes settings'],
       ['history / clear', '历史与清屏'],
       ['shell bash|cmd|pwsh', '切换模拟 shell']
     ],
@@ -162,12 +162,16 @@
             <button data-shell="cmd">CMD</button>
             <button data-shell="pwsh">PS</button>
           </div>
+          <div class="term-shell-seg hidden" id="termRealSeg">
+            <button data-channel="linux" class="on">LINUX</button>
+            <button data-channel="host" id="termHostBtn">TERMUX</button>
+          </div>
           <span class="term-meta" id="termMeta">SIM · WEB VFS</span>
           <button class="btn sm ghost" id="termModeBtn">真 Linux</button>
         </div>
         <div class="term-out" id="termOut"></div>
         <div class="term-input-line">
-          <span class="term-prompt" id="termPrompt">tensaint@aether:~$</span>
+          <span class="term-prompt" id="termPrompt">aether@aether:~$</span>
           <input class="term-input" id="termInput" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="终端输入">
           <span class="term-hint">TAB</span>
         </div>
@@ -177,6 +181,8 @@
       const promptEl = $('#termPrompt', root);
       const metaEl = $('#termMeta', root);
       const seg = $('#termShellSeg', root);
+      const realSeg = $('#termRealSeg', root);
+      const hostBtn = $('#termHostBtn', root);
       const modeBtn = $('#termModeBtn', root);
 
       const st = {
@@ -184,6 +190,10 @@
         mode: 'sim',
         cwd: RO_HOME,
         realCwd: '/root',
+        realHome: '/root',
+        hostCwd: null,
+        hostHome: null,
+        channel: 'linux',
         history: [],
         histIdx: -1,
         busy: false,
@@ -202,36 +212,66 @@
       function printBlock(text, cls = '') {
         String(text).replace(/\n$/, '').split('\n').forEach(l => printLine(l, cls));
       }
+      function shortReal(p, home) {
+        return p === home ? '~' : (p.startsWith(home + '/') ? '~' + p.slice(home.length) : p);
+      }
       function promptText() {
         if (st.mode === 'real') {
+          if (st.channel === 'host') {
+            const home = st.hostHome || '/';
+            const cwd = st.hostCwd || home;
+            const label = bridge.cfg && bridge.cfg.mode === 'ish' ? 'ish@alpine' : 'termux@termux';
+            return `<span class="tp-acc">${label}</span>:${shortReal(cwd, home)} $`;
+          }
           const home = st.realHome || '/root';
-          const short = st.realCwd === home ? '~' : (st.realCwd.startsWith(home + '/') ? '~' + st.realCwd.slice(home.length) : st.realCwd);
+          const short = shortReal(st.realCwd, home);
           return `<span class="tp-acc">aether@${bridge.cfg ? bridge.cfg.distro : 'linux'}</span>:${short} $`;
         }
-        if (st.shell === 'bash') return `<span class="tp-acc">tensaint@aether</span>:${shortPath(st.cwd, 'bash')} $`;
-        if (st.shell === 'cmd') return `C:\\Users\\TENSAINT&gt;`;
-        return `PS C:\\Users\\TENSAINT&gt;`;
+        if (st.shell === 'bash') return `<span class="tp-acc">aether@aether</span>:${shortPath(st.cwd, 'bash')} $`;
+        if (st.shell === 'cmd') return `C:\\Users\\aether&gt;`;
+        return `PS C:\\Users\\aether&gt;`;
       }
       function syncPrompt() { promptEl.innerHTML = promptText(); }
       function setMeta() {
+        const hostLabel = bridge.cfg && bridge.cfg.mode === 'ish' ? 'ISH' : 'TERMUX';
+        hostBtn.textContent = hostLabel;
         if (st.mode === 'real') {
           const kind = bridge.cfg.mode === 'ish' ? 'iSH' : 'proot';
-          metaEl.textContent = 'REAL · ' + (bridge.cfg.distro || 'linux').toUpperCase() + ' · ' + kind;
+          metaEl.textContent = st.channel === 'host'
+            ? 'REAL · ' + (bridge.cfg.mode === 'ish' ? 'iSH · ALPINE' : 'TERMUX HOST')
+            : 'REAL · ' + (bridge.cfg.distro || 'linux').toUpperCase() + ' · ' + kind;
         } else {
           metaEl.textContent = 'SIM · WEB VFS';
         }
+        seg.classList.toggle('hidden', st.mode === 'real');
+        realSeg.classList.toggle('hidden', st.mode !== 'real');
         [...seg.children].forEach(b => b.classList.toggle('on', b.dataset.shell === st.shell && st.mode !== 'real'));
+        [...realSeg.children].forEach(b => b.classList.toggle('on', b.dataset.channel === st.channel && st.mode === 'real'));
         syncPrompt();
       }
+      function channelHint() {
+        if (st.channel === 'host') {
+          if (bridge.cfg.mode === 'ish') {
+            printLine('iSH 主机 · Alpine：命令直接运行在 iSH 用户空间，可执行 apk update / apk add、ls、uname -a、python3 等。', 'ok');
+          } else {
+            printLine('Termux 主机：命令直接运行在 Termux，可执行 pkg install、termux-battery-status、termux-toast、am start 等。', 'ok');
+            printLine('termux-* 命令需安装 Termux:API App 与 termux-api 包；访问共享存储先运行 termux-setup-storage。', 'dim');
+          }
+        } else {
+          printLine('已进入 ' + (bridge.cfg.distro || 'linux') + ' 用户空间，可执行 apt、uname、ls、编译器等发行版命令。', 'ok');
+        }
+        printLine('切换上方 LINUX / ' + (bridge.cfg.mode === 'ish' ? 'ISH' : 'TERMUX') + ' 可改变命令执行位置；输入 help 查看示例。', 'dim');
+      }
       function banner() {
-        printLine('AETHER TERMINAL  v1.0  ·  ' + (st.mode === 'real' ? 'REAL LINUX BRIDGE' : 'CONCEPT SANDBOX'), 'sys');
+        printLine('AETHER TERMINAL  v1.1.0  ·  ' + (st.mode === 'real' ? 'REAL LINUX BRIDGE' : 'CONCEPT SANDBOX'), 'sys');
         if (st.mode === 'real') {
           const via = bridge.cfg.mode === 'ish' ? 'iSH · Alpine' : 'proot-distro · ' + bridge.cfg.distro;
           printLine(`已连接 ${via}。命令真实执行，界面由 AETHER OS 提供。`, 'ok');
+          channelHint();
           printLine('提示：交互式程序（vim/top 等）不受支持；每条命令独立执行。', 'dim');
         } else {
           printLine('默认沙盒模式：命令、路径、网络输出均为演示，不触碰真实系统。', 'dim');
-          printLine('Android 可连 Termux 真 Linux（Ubuntu/Kali），iPhone/iPad 可经 iSH 连 Alpine。输入 help 查看命令。', 'dim');
+          printLine('Android 可连 Termux 真 Linux（Ubuntu/Kali）与 Termux 主机，iPhone/iPad 可经 iSH 执行 Alpine 命令。输入 help 查看命令。', 'dim');
         }
         printLine('');
       }
@@ -286,7 +326,7 @@
               entries.forEach(([name, n]) => {
                 const type = n.t === 'd' ? 'drwxr-xr-x' : '-rw-r--r--';
                 const size = String(n.t === 'd' ? 4096 : (n.c || '').length).padStart(6, ' ');
-                printLine(`${type} tensaint tensaint ${size} ${name}${n.t === 'd' ? '/' : ''}`);
+                printLine(`${type} aether aether ${size} ${name}${n.t === 'd' ? '/' : ''}`);
               });
               return;
             }
@@ -364,10 +404,10 @@
             const v = safeCalc(args.join(' '));
             v === null ? printLine('calc: 无法计算该表达式', 'err') : printLine('= ' + v, 'ok');
           },
-          whoami() { printLine(st.mode === 'real' ? 'root' : 'tensaint'); },
+          whoami() { printLine(st.mode === 'real' ? 'root' : 'aether'); },
           hostname() { printLine('aether'); },
           uname() {
-            if (args.includes('-a')) printLine('AetherOS 1.0.0 concept web-virtual #1 SMP PREEMPT ' + new Date().toDateString() + ' x86_64 WebRuntime (sandbox)');
+            if (args.includes('-a')) printLine('AetherOS 1.1.0 concept web-virtual #1 SMP PREEMPT ' + new Date().toDateString() + ' x86_64 WebRuntime (sandbox)');
             else printLine('AetherOS');
           },
           date() { printLine(fmtDate(new Date())); },
@@ -389,18 +429,18 @@
           },
           ps() {
             printLine('USER       PID  %CPU  %MEM  COMMAND', 'dim');
-            printLine('tensaint     1   0.1   0.8  aether-init');
-            printLine('tensaint   128   1.4   2.2  aether-ui');
-            printLine('tensaint   209   0.3   1.1  aether-term');
-            printLine('tensaint   311   0.0   0.4  bridge-watch (optional)', 'dim');
+            printLine('aether     1   0.1   0.8  aether-init');
+            printLine('aether   128   1.4   2.2  aether-ui');
+            printLine('aether   209   0.3   1.1  aether-term');
+            printLine('aether   311   0.0   0.4  bridge-watch (optional)', 'dim');
           },
           top() {
             printLine('top - ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }) + ' up 1 min, load average: 0.08, 0.12, 0.09', 'dim');
             printLine('任务: 4 total, 1 running, 3 sleeping');
             printLine('');
             printLine('  PID  USER      PR  NI    VIRT    RES  S  %CPU  %MEM  COMMAND', 'dim');
-            printLine('  128  tensaint  20   0  512.3m  88.2m  S   1.4   2.2  aether-ui');
-            printLine('  209  tensaint  20   0   64.1m  22.8m  S   0.3   1.1  aether-term');
+            printLine('  128  aether  20   0  512.3m  88.2m  S   1.4   2.2  aether-ui');
+            printLine('  209  aether  20   0   64.1m  22.8m  S   0.3   1.1  aether-term');
             printLine('（快照输出，按 Enter 返回）', 'dim');
           },
           neofetch() {
@@ -414,7 +454,7 @@
               '      AETHER OS'
             ];
             const info = [
-              'OS: AETHER OS 1.0.0 concept',
+              'OS: AETHER OS 1.1.0 concept',
               'Host: Web Runtime (PWA)',
               'Kernel: web-virtual (sandbox)',
               'Shell: ' + (st.shell === 'pwsh' ? 'PowerShell (sim)' : st.shell),
@@ -479,7 +519,7 @@
             execSim(args.join(' '));
           },
           chmod() { printLine('chmod: 沙盒模式已记录（未真正修改）', 'dim'); },
-          ver() { printLine('AETHER OS [Version 1.0.0-concept]'); },
+          ver() { printLine('AETHER OS [Version 1.1.0-concept]'); },
           ipconfig() {
             printLine('');
             printLine('以太网适配器 aether0：');
@@ -490,8 +530,8 @@
           },
           systeminfo() {
             printLine('主机名:            AETHER');
-            printLine('OS 名称:           AETHER OS Concept 1.0.0');
-            printLine('OS 版本:           1.0.0 WebRuntime');
+            printLine('OS 名称:           AETHER OS Concept 1.1.0');
+            printLine('OS 版本:           1.1.0 WebRuntime');
             printLine('系统类型:          x64-based terminal (simulated)');
             printLine('处理器:            Browser JS Engine');
             printLine('物理内存总量:      8,192 MB (virtual)');
@@ -522,18 +562,54 @@
       }
 
       /* ---------- 真实桥接执行 ---------- */
+      function realHelp() {
+        const host = st.channel === 'host';
+        const ish = bridge.cfg.mode === 'ish';
+        printLine('REAL 命令示例 · ' + (host ? (ish ? 'iSH · Alpine 主机' : 'Termux 主机') : (bridge.cfg.distro || 'linux') + ' 用户空间'), 'sys');
+        const rows = host
+          ? (ish
+            ? [
+              ['apk update / apk add <包>', 'iSH 的 Alpine 包管理器'],
+              ['uname -a / ls / cat', 'iSH 用户空间内的真实命令'],
+              ['python3 / sh / apk', 'iSH 已安装的工具可直接运行'],
+              ['exit', '断开桥接，回到模拟模式'],
+            ]
+            : [
+              ['pkg update / pkg install <包>', 'Termux 包管理器'],
+              ['termux-battery-status / termux-toast', 'Termux:API（需安装 App 与 termux-api 包）'],
+              ['termux-clipboard-get / termux-open', '剪贴板与打开文件/链接'],
+              ['am start -a android.intent.action.VIEW ...', 'Android 系统 Intent（受系统限制）'],
+              ['ls ~ /sdcard', '先运行 termux-setup-storage 授权共享存储'],
+              ['exit', '断开桥接，回到模拟模式'],
+            ])
+          : [
+            ['apt update / apt install <包>', '当前发行版包管理器'],
+            ['uname -a / ls / cat / ps', '真实 Linux 命令'],
+            ['python3 / gcc / node', '已安装的工具链可直接调用'],
+            ['exit', '断开桥接，回到模拟模式'],
+          ];
+        rows.forEach(([c, d]) => printLine('  ' + c.padEnd(34, ' ') + d));
+        printLine('提示：帮助不会伪造输出；真正执行请直接输入命令。交互式全屏程序不受支持。', 'dim');
+      }
       async function realExec(raw) {
         const cmd = raw.trim();
         if (!cmd) return;
         if (cmd === 'clear' || cmd === 'cls') { out.innerHTML = ''; return; }
+        if (cmd === 'help' || cmd === '?') { realHelp(); return; }
         if (cmd === 'exit') {
           st.mode = 'sim';
           st.shell = 'bash';
+          st.channel = 'linux';
           setMeta();
-          printLine('已断开真 Linux，回到模拟模式。', 'warn');
+          printLine('已断开桥接，回到模拟模式。', 'warn');
           return;
         }
-        printLine('aether@' + bridge.cfg.distro + ':' + (st.realCwd === (st.realHome || '/root') ? '~' : st.realCwd) + ' $ ' + raw, 'cmd');
+        const host = st.channel === 'host';
+        const ish = bridge.cfg.mode === 'ish';
+        const home = host ? (st.hostHome || '/') : (st.realHome || '/root');
+        const cwd = host ? (st.hostCwd || st.hostHome || '/') : st.realCwd;
+        const label = host ? (ish ? 'ish@alpine' : 'termux@termux') : 'aether@' + bridge.cfg.distro;
+        printLine(label + ':' + shortReal(cwd, home) + ' $ ' + raw, 'cmd');
         st.busy = true;
         input.disabled = true;
         const spin = setInterval(() => {}, 1000);
@@ -545,7 +621,7 @@
           const res = await fetch(endpoint + '/api/exec', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-aether-token': bridge.cfg.token },
-            body: JSON.stringify({ cmd, cwd: st.realCwd, distro: bridge.cfg.distro }),
+            body: JSON.stringify({ cmd, cwd, distro: bridge.cfg.distro, scope: host ? 'host' : 'distro' }),
             signal: ctl.signal
           });
           clearTimeout(timer);
@@ -557,9 +633,14 @@
           } else {
             if (data.out) printBlock(data.out);
             if (typeof data.code === 'number' && data.code !== 0) printLine(`退出码 ${data.code}`, 'warn');
-            if (data.cwd && data.cwd !== st.realCwd) { st.realCwd = data.cwd; }
+            if (data.cwd) {
+              if (host) st.hostCwd = data.cwd;
+              else st.realCwd = data.cwd;
+            }
             if (data.truncated) printLine('（输出过长已截断）', 'dim');
-            if (typeof data.ms === 'number') printLine(`· ${data.ms} ms · ${data.distro}`, 'dim');
+            if (typeof data.ms === 'number') {
+              printLine(`· ${data.ms} ms · ${data.scope === 'host' ? (ish ? 'iSH' : 'Termux') : data.distro}`, 'dim');
+            }
           }
         } catch (err) {
           printLine('无法连接桥接服务：' + (err && err.name === 'AbortError' ? '请求超时' : String(err && err.message || err)), 'err');
@@ -600,7 +681,8 @@
               <button class="btn ghost" id="tsBack">返回模拟</button>
             </div>
             <button class="btn ghost" id="tsClose" style="width:100%;margin-top:8px">关闭</button>
-            <p class="note" style="margin-top:10px">安全边界：桥接仅监听本机回环地址并校验令牌；它执行的是你手机内 Termux/iSH 用户空间的命令，不涉及 PC 或远程服务器。deepin 需自备 rootfs；桌面浏览器也可打开同一地址。</p>
+            <p class="note" style="margin-top:10px">连接后可切换两种通道：LINUX 进入 Ubuntu / Kali / Alpine 用户空间；<span class="mono">TERMUX</span>（Android）直接执行 pkg、termux-* 等 Termux 主机命令，<span class="mono">ISH</span>（iPhone/iPad）直接执行 apk 等 iSH Alpine 命令。termux-* 需要 Termux:API App 与 termux-api 包。</p>
+            <p class="note" style="margin-top:8px">安全边界：桥接仅监听本机回环地址并校验令牌；它执行的是你手机内 Termux/iSH 用户空间的命令，不涉及 PC 或远程服务器。deepin 需自备 rootfs；桌面浏览器也可打开同一地址。</p>
           </div>
         `;
         root.appendChild(overlay);
@@ -655,6 +737,7 @@
           bridge.cfg = null;
           st.mode = 'sim';
           st.shell = 'bash';
+          st.channel = 'linux';
           setMeta();
           close();
           printLine('已切换回模拟模式。', 'warn');
@@ -682,14 +765,17 @@
             Aether.store.set('bridge', bridge.cfg);
             st.mode = 'real';
             st.shell = 'bash';
+            st.channel = 'linux';
             st.realCwd = data.home || '/root';
             st.realHome = data.home || '/root';
+            st.hostHome = data.home || '/';
+            st.hostCwd = st.hostHome;
             setMeta();
             close();
             printLine('');
             banner();
             printLine('已连接：' + (data.mode === 'ish' ? 'iSH · Alpine' : 'proot · ' + distro) + ' · ' + (data.platform || 'Linux'), 'ok');
-            printLine('直接输入 Linux 命令，例如 uname -a、ls、cat /etc/os-release。', 'dim');
+            printLine('当前是 Linux 用户空间；点上方 ' + (data.mode === 'ish' ? 'ISH' : 'TERMUX') + ' 可切换到主机命令。', 'dim');
           } catch (err) {
             status.textContent = '连接失败：' + (err && err.name === 'AbortError' ? '超时' : String(err && err.message || err));
             status.className = 'ts-status err';
@@ -762,13 +848,24 @@
         const b = e.target.closest('button[data-shell]');
         if (!b) return;
         if (st.mode === 'real') {
-          Aether.toast('真实模式固定为 Linux shell；断开后可切换 CMD / PS');
+          Aether.toast('真实模式请使用上方 LINUX / ' + (bridge.cfg.mode === 'ish' ? 'ISH' : 'TERMUX') + ' 通道');
           return;
         }
         st.shell = b.dataset.shell;
         setMeta();
         out.innerHTML = '';
         banner();
+      });
+      realSeg.addEventListener('click', e => {
+        const b = e.target.closest('button[data-channel]');
+        if (!b || st.mode !== 'real' || b.dataset.channel === st.channel) return;
+        st.channel = b.dataset.channel;
+        setMeta();
+        printLine('');
+        printLine('── 已切换到 ' + (st.channel === 'host' ? (bridge.cfg.mode === 'ish' ? 'iSH 主机' : 'Termux 主机') : (bridge.cfg.distro || 'linux') + ' 用户空间') + ' ──', 'sys');
+        channelHint();
+        printLine('');
+        input.focus();
       });
       modeBtn.addEventListener('click', openSetup);
 
