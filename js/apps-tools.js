@@ -1094,11 +1094,11 @@
         const link = document.createElement('link');
         link.id = 'leaflet-css';
         link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.href = 'vendor/leaflet/leaflet.css';
         document.head.appendChild(link);
       }
       const s = document.createElement('script');
-      s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      s.src = 'vendor/leaflet/leaflet.js';
       s.onload = () => resolve();
       s.onerror = () => reject(new Error('Leaflet 加载失败'));
       document.head.appendChild(s);
@@ -1120,43 +1120,352 @@
       root.innerHTML = `
         <div id="leaflet-map"></div>
         <div class="map-hud map-top">
-          <div style="flex:1">
-            <div class="field"><span class="mono" style="font-size:9px;color:var(--dim-2)">⌕</span><input id="mapQuery" placeholder="搜索地点（Photon / OpenStreetMap）"></div>
+          <div class="map-searchwrap">
+            <div class="field map-search">
+              <span class="mono" style="font-size:9px;color:var(--dim-2)">⌕</span>
+              <input id="mapQuery" placeholder="搜索地点、地址、商铺（全球）" autocomplete="off">
+              <button id="mapClear" class="map-inline hidden" aria-label="清空">${Aether.icon('x')}</button>
+            </div>
             <div class="map-results hidden" id="mapResults"></div>
+            <div class="map-status" id="mapStatus"></div>
           </div>
           <button class="map-fab" id="mapSearchBtn" title="搜索">${Aether.icon('search')}</button>
+          <button class="map-fab" id="mapLocate" title="定位">${Aether.icon('location')}</button>
         </div>
         <div class="map-hud map-bottom">
           <div class="map-coords" id="mapCoords">LAT --.----<br>LNG --.----<br>ZOOM --</div>
           <div class="map-actions">
-            <button class="map-fab" id="mapLocate" title="定位">${Aether.icon('location')}</button>
-            <button class="map-fab" id="mapReset" title="清除标记">${Aether.icon('refresh')}</button>
+            <button class="map-fab" id="mapReset" title="清除标记与路线">${Aether.icon('refresh')}</button>
           </div>
         </div>
+        <section class="map-sheet hidden" id="mapSheet">
+          <div class="ms-handle"></div>
+          <header class="ms-head">
+            <div class="ms-headtext">
+              <span class="ms-cat" id="msCat">地点</span>
+              <h3 id="msName">--</h3>
+              <p id="msAddr">--</p>
+            </div>
+            <button class="icon-btn" id="msClose" aria-label="关闭">${Aether.icon('x')}</button>
+          </header>
+          <div class="ms-modes" id="msModes">
+            <button class="ms-mode" data-mode="driving">${Aether.icon('route')}<span>驾车</span></button>
+            <button class="ms-mode" data-mode="walking">${Aether.icon('route')}<span>步行</span></button>
+            <button class="ms-mode" data-mode="cycling">${Aether.icon('route')}<span>骑行</span></button>
+          </div>
+          <div class="ms-body" id="msBody"></div>
+        </section>
       `;
+      const P = Aether.places;
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dial = n => (Aether.hotlines ? Aether.hotlines.dial(n) : String(n || '').replace(/[^\d+]/g, ''));
+      const safeUrl = u => { try { const x = new URL(String(u), location.href); return x.protocol === 'http:' || x.protocol === 'https:' ? x.href : ''; } catch (e) { return ''; } };
+      const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
       const coordsEl = root.querySelector('#mapCoords');
       const resultsEl = root.querySelector('#mapResults');
       const queryEl = root.querySelector('#mapQuery');
-      let map = null, userMarker = null, accCircle = null, targetMarker = null, routeLine = null;
-      let userLL = null, abortCtl = null, cleaned = false;
+      const clearEl = root.querySelector('#mapClear');
+      const statusEl = root.querySelector('#mapStatus');
+      const sheetEl = root.querySelector('#mapSheet');
+      const msName = root.querySelector('#msName');
+      const msCat = root.querySelector('#msCat');
+      const msAddr = root.querySelector('#msAddr');
+      const msBody = root.querySelector('#msBody');
+      const msModes = root.querySelector('#msModes');
+      const locateBtn = root.querySelector('#mapLocate');
+      let map = null, userMarker = null, accCircle = null, targetMarker = null;
+      let routeLayers = [], userLL = null, userSource = '', searchSeq = 0;
+      let currentPlace = null, currentDetail = null, currentMode = 'driving';
+      let detailSeq = 0, routeSeq = 0, cleaned = false, pendingStarted = false;
       let last = Aether.store.get('map.view', [31.2304, 121.4737, 12]);
+      let mapReadyResolve;
+      const mapReady = new Promise(r => { mapReadyResolve = r; });
 
+      function setStatus(msg, kind = '') {
+        if (!msg) { statusEl.className = 'map-status'; statusEl.textContent = ''; return; }
+        statusEl.className = 'map-status show ' + kind;
+        statusEl.textContent = msg;
+      }
       function setCoords(lat, lng, zoom) {
         coordsEl.innerHTML = `LAT <b>${lat.toFixed(5)}</b><br>LNG <b>${lng.toFixed(5)}</b><br>ZOOM <b>${zoom}</b>`;
       }
       function fallback(msg) {
         const fb = document.createElement('div');
         fb.className = 'map-fallback';
-        fb.innerHTML = `<div class="mf-orb">${Aether.icon('map')}</div><div class="note" style="max-width:280px">${msg}</div><p class="note">定位仍可用：点击右下角定位按钮。地图瓦片需要联网。</p>`;
+        fb.innerHTML = `<div class="mf-orb">${Aether.icon('map')}</div><div class="note" style="max-width:280px">${esc(msg)}</div><p class="note">请检查网络后重新打开地图；索引仍可离线使用。</p>`;
         root.appendChild(fb);
+        setStatus('地图引擎加载失败', 'err');
       }
-
+      function openSheet() {
+        sheetEl.classList.remove('hidden');
+        root.classList.add('sheet-open');
+        if (map) setTimeout(() => { if (map) map.invalidateSize(); }, 80);
+      }
+      function closeSheet() {
+        sheetEl.classList.add('hidden');
+        root.classList.remove('sheet-open');
+      }
+      function clearRoute() {
+        routeLayers.forEach(layer => { try { layer.remove(); } catch (e) {} });
+        routeLayers = [];
+      }
+      function applyUser(lat, lng, accuracy, source) {
+        userLL = [lat, lng];
+        userSource = source;
+        Aether.setGPS(lat, lng, source);
+        if (!map) { setCoords(lat, lng, 15); return; }
+        if (userMarker) userMarker.remove();
+        if (accCircle) accCircle.remove();
+        userMarker = L.marker([lat, lng], {
+          icon: L.divIcon({ className: '', html: '<div class="user-marker"><i></i></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
+        }).addTo(map);
+        if (accuracy) {
+          accCircle = L.circle([lat, lng], { radius: Math.min(accuracy, 500), color: '#36e6ff', weight: 1, fillOpacity: .06 }).addTo(map);
+        }
+        const zoom = Math.max(map.getZoom() || 12, source === 'ip' ? 11 : 15);
+        map.flyTo([lat, lng], zoom, { duration: 1.1 });
+        setCoords(lat, lng, zoom);
+      }
+      async function ipFallback(reason) {
+        setStatus('GPS 不可用（' + reason + '），正在尝试 IP 粗略定位…', 'warn');
+        try {
+          const ip = await P.ipLocate();
+          if (cleaned) return null;
+          applyUser(ip.lat, ip.lon, null, 'ip');
+          const where = [ip.city, ip.region, ip.country].filter(Boolean).join(' · ');
+          setStatus('已用 IP 定位' + (where ? '：' + where : '') + '（城市级精度，仅供搜索与路线起点参考）', 'warn');
+          api.toast('已改用 IP 粗略定位');
+          return userLL;
+        } catch (err) {
+          if (!cleaned) {
+            setStatus('定位失败：' + reason + '。请检查系统定位权限与网络。', 'err');
+            api.toast('定位失败：' + reason, 'err');
+          }
+          return null;
+        }
+      }
+      function locate(silent) {
+        locateBtn.classList.add('on');
+        setStatus('正在获取 GPS 定位…');
+        return new Promise(resolve => {
+          const finish = value => { locateBtn.classList.remove('on'); resolve(value); };
+          if (!navigator.geolocation) { ipFallback('浏览器不支持 GPS').then(finish); return; }
+          navigator.geolocation.getCurrentPosition(pos => {
+            if (cleaned) { finish(null); return; }
+            const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy || 0;
+            applyUser(lat, lng, acc, 'gps');
+            setStatus('GPS 定位成功' + (acc ? '，精度约 ' + Math.round(acc) + ' m' : ''), 'ok');
+            if (!silent) api.toast('已获取 GPS 定位', 'ok');
+            finish(userLL);
+          }, err => {
+            if (cleaned) { finish(null); return; }
+            const reason = err.code === 1 ? '权限被拒绝' : err.code === 2 ? '位置不可用' : err.code === 3 ? '定位超时' : (err.message || '未知错误');
+            ipFallback(reason).then(finish);
+          }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 });
+        });
+      }
+      async function ensureOrigin() {
+        if (userLL) return userLL;
+        return await locate(true);
+      }
+      function emergencyHtml(place) {
+        if (!Aether.hotlines) return '';
+        const h = Aether.hotlines.byCode(place.countrycode);
+        if (!h) return '';
+        const rows = [];
+        if (h.u) rows.push(['紧急', h.u]);
+        if (h.p) rows.push(['报警', h.p]);
+        if (h.f) rows.push(['消防', h.f]);
+        if (h.a) rows.push(['急救', h.a]);
+        const uniq = [];
+        rows.forEach(row => { if (!uniq.some(x => x[1] === row[1])) uniq.push(row); });
+        return `<div class="ms-emergency"><b>${esc(h.n)}当地紧急电话</b><div class="ms-emg-row">${uniq.map(([label, num]) => `<a href="tel:${esc(dial(num))}"><span>${label}</span><strong>${esc(num)}</strong></a>`).join('')}</div></div>`;
+      }
+      function renderInfo() {
+        if (!currentPlace) return;
+        const p = currentPlace;
+        const d = currentDetail || {};
+        const tags = [`<span class="ms-tag">${esc(p.category || '地点')}</span>`];
+        if (p.distance != null) tags.push(`<span class="ms-tag">直线 ${P.fmtDistance(p.distance)}</span>`);
+        if (p.country) tags.push(`<span class="ms-tag">${esc(p.country)}</span>`);
+        const rows = [];
+        if (d.address) rows.push(`<div class="ms-row"><span class="ms-label">地址</span><div class="ms-value">${esc(d.address)}</div></div>`);
+        if (d.phones && d.phones.length) {
+          rows.push(`<div class="ms-row"><span class="ms-label">电话</span><div class="ms-value ms-phones">${d.phones.map(n => `<a href="tel:${esc(dial(n))}">${Aether.icon('phone')}${esc(n)}</a>`).join('')}</div></div>`);
+        } else if (d.source === 'osm') {
+          rows.push('<div class="ms-row"><span class="ms-label">电话</span><div class="ms-value dim">OSM 未收录电话</div></div>');
+        }
+        if (d.hours) rows.push(`<div class="ms-row"><span class="ms-label">营业</span><div class="ms-value">${esc(d.hours)}</div></div>`);
+        const site = d.website ? safeUrl(d.website) : '';
+        if (site) rows.push(`<div class="ms-row"><span class="ms-label">网站</span><div class="ms-value"><a href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(site))}</a></div></div>`);
+        if (d.operator) rows.push(`<div class="ms-row"><span class="ms-label">运营</span><div class="ms-value">${esc(d.operator)}</div></div>`);
+        if (d.error) rows.push(`<div class="ms-hint">详情源暂时不可达（${esc(d.error)}），地址与坐标仍可用。</div>`);
+        if (!rows.length) rows.push('<div class="ms-hint">正在获取地址与联系方式…</div>');
+        const coords = p.lat.toFixed(5) + ', ' + p.lon.toFixed(5);
+        msBody.innerHTML = `
+          <div class="ms-tags">${tags.join('')}</div>
+          <div class="ms-rows">${rows.join('')}</div>
+          ${emergencyHtml(p)}
+          <button class="ms-copy" id="msCopy">${Aether.icon('copy')}复制坐标 ${esc(coords)}</button>
+          <p class="ms-fine">地点数据 © OpenStreetMap 贡献者 · 电话与营业时间以商家公布为准</p>
+        `;
+        const copyBtn = msBody.querySelector('#msCopy');
+        if (copyBtn) copyBtn.addEventListener('click', async () => {
+          const ok = await Aether.copyText(coords);
+          api.toast(ok ? '坐标已复制' : '复制失败', ok ? 'ok' : 'err');
+        });
+      }
+      async function selectPlace(place) {
+        if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lon)) {
+          api.toast('地点坐标无效', 'err');
+          return;
+        }
+        currentPlace = place;
+        currentDetail = null;
+        currentMode = 'driving';
+        const seq = ++detailSeq;
+        routeSeq++;
+        clearRoute();
+        queryEl.value = place.name || '';
+        clearEl.classList.remove('hidden');
+        resultsEl.classList.add('hidden');
+        msName.textContent = place.name || '未命名地点';
+        msCat.textContent = place.category || '地点';
+        msAddr.textContent = place.label || place.address || place.country || '';
+        msModes.querySelectorAll('.ms-mode').forEach(b => b.classList.toggle('on', b.dataset.mode === currentMode));
+        msBody.innerHTML = `<div class="ms-tags"><span class="ms-tag">${esc(place.category || '地点')}</span>${place.distance != null ? `<span class="ms-tag">直线 ${P.fmtDistance(place.distance)}</span>` : ''}</div><div class="ms-hint">正在获取地址、电话与营业时间…</div>${emergencyHtml(place)}`;
+        openSheet();
+        if (map) {
+          if (targetMarker) targetMarker.remove();
+          targetMarker = L.marker([place.lat, place.lon], {
+            icon: L.divIcon({ className: '', html: '<div class="target-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
+          }).addTo(map);
+          const zoom = Math.max(map.getZoom() || 12, 15);
+          map.flyTo([place.lat, place.lon], zoom, { duration: 1.0 });
+          setCoords(place.lat, place.lon, zoom);
+        } else {
+          setCoords(place.lat, place.lon, 15);
+        }
+        setStatus('已选中：' + (place.name || '未命名地点'), 'ok');
+        try {
+          const detail = await P.details(place);
+          if (cleaned || seq !== detailSeq || currentPlace !== place) return;
+          currentDetail = detail;
+          renderInfo();
+        } catch (err) {
+          if (seq !== detailSeq) return;
+          currentDetail = { error: String(err.message || err) };
+          renderInfo();
+        }
+      }
+      function drawRoute(r) {
+        clearRoute();
+        if (!map || !r.geometry.length) return;
+        const glow = L.polyline(r.geometry, { color: '#36e6ff', weight: 14, opacity: .14, lineJoin: 'round' }).addTo(map);
+        const line = L.polyline(r.geometry, { color: '#63f5dd', weight: 5, opacity: .95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+        routeLayers = [glow, line];
+        map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 90], paddingBottomRight: [30, 300] });
+      }
+      function renderRoute(r) {
+        const originLabel = userSource === 'ip' ? 'IP 粗略起点' : 'GPS 起点';
+        const steps = r.steps.map((s, i) => `<li class="ms-step" data-i="${i}"><span class="ms-step-idx">${i + 1}</span><div><p>${esc(s.text)}</p><em>${P.fmtDistance(s.distance)}${i === r.steps.length - 1 ? '' : ' · ' + P.fmtDuration(s.duration)}</em></div></li>`).join('');
+        msBody.innerHTML = `
+          <div class="ms-route-head">
+            <div><strong>${esc(P.modeName(r.mode))} ${P.fmtDistance(r.distance)}</strong><span>约 ${P.fmtDuration(r.duration)} · ${originLabel}</span></div>
+            <button class="ms-clear" id="msClearRoute" aria-label="返回地点详情">${Aether.icon('x')}</button>
+          </div>
+          <ol class="ms-steps" id="msSteps">${steps}</ol>
+          <p class="ms-fine">路线 © OSRM / FOSSGIS · 不含实时路况与限行，请以现场标识为准</p>
+        `;
+        const back = msBody.querySelector('#msClearRoute');
+        if (back) back.addEventListener('click', () => { routeSeq++; clearRoute(); renderInfo(); });
+        const list = msBody.querySelector('#msSteps');
+        if (list) list.addEventListener('click', e => {
+          const li = e.target.closest('.ms-step');
+          if (!li || !map) return;
+          const step = r.steps[Number(li.dataset.i)];
+          if (step && step.location) map.flyTo(step.location, Math.max(map.getZoom(), 16), { duration: .7 });
+        });
+      }
+      async function routeTo(mode) {
+        if (!currentPlace) return;
+        if (!map) { api.toast('地图尚未就绪', 'err'); return; }
+        currentMode = mode;
+        msModes.querySelectorAll('.ms-mode').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+        const seq = ++routeSeq;
+        clearRoute();
+        msBody.innerHTML = `<div class="ms-loading"><i></i>正在确认起点并规划${P.modeName(mode)}路线…</div>`;
+        const origin = await ensureOrigin();
+        if (cleaned || seq !== routeSeq) return;
+        if (!origin) {
+          renderInfo();
+          setStatus('无法确定起点：请允许定位，或保持联网以使用 IP 定位', 'err');
+          return;
+        }
+        try {
+          const r = await P.route(origin, [currentPlace.lat, currentPlace.lon], mode);
+          if (cleaned || seq !== routeSeq) return;
+          drawRoute(r);
+          renderRoute(r);
+          setStatus(P.modeName(mode) + '路线已生成 · ' + P.fmtDistance(r.distance) + ' · 约 ' + P.fmtDuration(r.duration), 'ok');
+        } catch (err) {
+          if (seq !== routeSeq) return;
+          renderInfo();
+          const msg = String(err.message || err);
+          setStatus('路线规划失败：' + msg, 'err');
+          api.toast('路线规划失败：' + msg, 'err');
+        }
+      }
+      async function search() {
+        const q = queryEl.value.trim();
+        if (!q) { api.toast('请输入地点、地址或商铺名称'); return; }
+        if (!map) { api.toast('地图尚未就绪，请稍候', 'err'); return; }
+        const seq = ++searchSeq;
+        resultsEl.classList.remove('hidden');
+        resultsEl.innerHTML = '<button disabled>搜索中…</button>';
+        setStatus('正在搜索「' + q + '」…');
+        const bias = userLL || [map.getCenter().lat, map.getCenter().lng];
+        try {
+          const found = await P.search(q, { lat: bias[0], lon: bias[1], limit: 40 });
+          if (cleaned || seq !== searchSeq) return;
+          const list = found.slice(0, 20);
+          if (!list.length) {
+            resultsEl.innerHTML = '<button disabled>没有匹配地点，试试城市名 + 地点名</button>';
+            setStatus('没有结果：可补充城市或换用英文名称', 'warn');
+            return;
+          }
+          resultsEl.innerHTML = '';
+          list.forEach(place => {
+            const b = document.createElement('button');
+            b.innerHTML = `<span class="mr-name">${esc(place.name)}</span><span class="mr-meta">${esc(place.category)}${place.distance != null ? ' · ' + P.fmtDistance(place.distance) : ''}</span><span class="mr-sub">${esc(place.label || place.country || '')}</span>`;
+            b.addEventListener('click', () => selectPlace(place));
+            resultsEl.appendChild(b);
+          });
+          setStatus('找到 ' + list.length + ' 个地点 · 按相关度与距离排序', 'ok');
+        } catch (err) {
+          if (cleaned || seq !== searchSeq) return;
+          resultsEl.innerHTML = '<button disabled>搜索服务不可达，请检查网络后重试</button>';
+          setStatus('搜索失败：' + (err.message || err), 'err');
+        }
+      }
+      async function consumePending() {
+        if (pendingStarted) return;
+        pendingStarted = true;
+        const pending = Aether.store.get('map.pending', null);
+        if (!pending || !Number.isFinite(pending.lat) || !Number.isFinite(pending.lon)) return;
+        const ok = await mapReady;
+        if (!ok || cleaned) return;
+        Aether.store.del('map.pending');
+        selectPlace(pending);
+        if (pending.mode) setTimeout(() => { if (!cleaned) routeTo(pending.mode); }, 900);
+      }
       (async () => {
         try {
           await loadLeaflet();
           if (cleaned) return;
-          document.getElementById('leaflet-map').innerHTML = '';
-          map = L.map('leaflet-map', { zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 19 });
+          const host = root.querySelector('#leaflet-map');
+          host.innerHTML = '';
+          map = L.map(host, { zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 19 });
           map.setView([last[0], last[1]], last[2]);
           L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19, maxNativeZoom: 16,
@@ -1172,135 +1481,295 @@
             Aether.store.set('map.view', [c.lat, c.lng, map.getZoom()]);
           });
           setTimeout(() => { if (map) map.invalidateSize(); }, 250);
+          mapReadyResolve(true);
+          consumePending();
+          setTimeout(() => { if (!cleaned && !userLL && !currentPlace) locate(true); }, 600);
         } catch (err) {
           leafletOnce = null;
+          mapReadyResolve(false);
           fallback('地图引擎未能加载（可能离线或被网络拦截）。' + String(err.message || err));
         }
       })();
-
-      function locate() {
-        const btn = root.querySelector('#mapLocate');
-        btn.classList.add('on');
-        const done = () => btn.classList.remove('on');
-        if (!navigator.geolocation) { api.toast('浏览器不支持定位', 'err'); done(); return; }
-        navigator.geolocation.getCurrentPosition(pos => {
-          done();
-          const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy || 50;
-          userLL = [lat, lng];
-          Aether.setGPS(lat, lng);
-          if (map) {
-            if (userMarker) userMarker.remove();
-            if (accCircle) accCircle.remove();
-            userMarker = L.marker([lat, lng], {
-              icon: L.divIcon({ className: '', html: '<div class="user-marker"><i></i></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
-            }).addTo(map);
-            accCircle = L.circle([lat, lng], { radius: Math.min(acc, 500), color: '#36e6ff', weight: 1, fillOpacity: .06 }).addTo(map);
-            map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 1.2 });
-            setCoords(lat, lng, Math.max(map.getZoom(), 15));
-          } else {
-            setCoords(lat, lng, 15);
-          }
-          api.toast('已获取真实定位（精度约 ' + Math.round(acc) + ' m）', 'ok');
-        }, err => {
-          done();
-          api.toast('定位失败：' + (err.message || '请检查权限'), 'err');
-        }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
-      }
-      root.querySelector('#mapLocate').addEventListener('click', locate);
-
-      root.querySelector('#mapReset').addEventListener('click', () => {
-        if (targetMarker) { targetMarker.remove(); targetMarker = null; }
-        if (routeLine) { routeLine.remove(); routeLine = null; }
-        if (userMarker) { userMarker.remove(); userMarker = null; }
-        if (accCircle) { accCircle.remove(); accCircle = null; }
-        resultsEl.classList.add('hidden');
-        api.toast('已清除标记');
-      });
-
-      function haversine(a, b) {
-        const R = 6371, rad = x => x * Math.PI / 180;
-        const dLat = rad(b[0] - a[0]), dLng = rad(b[1] - a[1]);
-        const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLng / 2) ** 2;
-        return 2 * R * Math.asin(Math.sqrt(h));
-      }
-
-      async function photonSearch(q, signal) {
-        const url = 'https://photon.komoot.io/api/?limit=6&q=' + encodeURIComponent(q);
-        const res = await fetch(url, { signal, headers: { 'Accept': 'application/json' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        return (data.features || []).map(f => {
-          const p = f.properties || {};
-          const label = [p.name, p.city, p.state, p.country].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
-          return { label: label || '未命名地点', lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] };
-        });
-      }
-
-      async function nominatimSearch(q, signal) {
-        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=zh-CN&q=' + encodeURIComponent(q);
-        const res = await fetch(url, { signal, headers: { 'Accept': 'application/json' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const list = await res.json();
-        return list.map(r => ({ label: r.display_name, lat: parseFloat(r.lat), lon: parseFloat(r.lon) }));
-      }
-
-      async function search() {
-        const q = queryEl.value.trim();
-        if (!q) { api.toast('请输入地点'); return; }
-        if (!map) { api.toast('地图引擎未加载，无法搜索'); return; }
-        resultsEl.classList.remove('hidden');
-        resultsEl.innerHTML = '<button disabled>搜索中…</button>';
-        if (abortCtl) abortCtl.abort();
-        abortCtl = new AbortController();
-        const signal = abortCtl.signal;
-        const timer = setTimeout(() => abortCtl.abort(), 12000);
-        let list = [];
-        try {
-          list = await photonSearch(q, signal);
-        } catch (err) {
-          if (!signal.aborted) {
-            try { list = await nominatimSearch(q, signal); } catch (e2) {}
-          }
-        }
-        clearTimeout(timer);
-        try {
-          resultsEl.innerHTML = '';
-          if (!list.length) { resultsEl.innerHTML = '<button disabled>没有结果</button>'; return; }
-          list.forEach(r => {
-            const b = document.createElement('button');
-            b.textContent = r.label;
-            b.addEventListener('click', () => {
-              const lat = r.lat, lng = r.lon;
-              if (targetMarker) targetMarker.remove();
-              targetMarker = L.marker([lat, lng], {
-                icon: L.divIcon({ className: '', html: '<div class="target-marker"></div>', iconSize: [14, 14], iconAnchor: [7, 7] })
-              }).addTo(map);
-              if (routeLine) { routeLine.remove(); routeLine = null; }
-              if (userLL) {
-                routeLine = L.polyline([userLL, [lat, lng]], { color: '#ff3bdc', weight: 2, dashArray: '6 8', opacity: .85 }).addTo(map);
-                const km = haversine(userLL, [lat, lng]);
-                api.toast('直线距离约 ' + km.toFixed(1) + ' km（非导航路线）', 'ok');
-                map.fitBounds([userLL, [lat, lng]], { padding: [40, 40] });
-              } else {
-                map.flyTo([lat, lng], 15, { duration: 1.2 });
-              }
-              setCoords(lat, lng, 15);
-              resultsEl.classList.add('hidden');
-            });
-            resultsEl.appendChild(b);
-          });
-        } catch (err) {
-          resultsEl.innerHTML = '<button disabled>搜索失败（网络或服务限制）</button>';
-        }
-      }
+      root.querySelector('#mapLocate').addEventListener('click', () => locate(false));
       root.querySelector('#mapSearchBtn').addEventListener('click', search);
-      queryEl.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+      queryEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+      queryEl.addEventListener('input', () => { clearEl.classList.toggle('hidden', !queryEl.value); });
+      clearEl.addEventListener('click', () => {
+        queryEl.value = '';
+        clearEl.classList.add('hidden');
+        resultsEl.classList.add('hidden');
+        setStatus('');
+        queryEl.focus();
+      });
+      msModes.addEventListener('click', e => {
+        const b = e.target.closest('.ms-mode');
+        if (b && currentPlace) routeTo(b.dataset.mode);
+      });
+      root.querySelector('#msClose').addEventListener('click', () => closeSheet());
+      root.querySelector('#mapReset').addEventListener('click', () => {
+        routeSeq++;
+        detailSeq++;
+        clearRoute();
+        if (targetMarker) { targetMarker.remove(); targetMarker = null; }
+        currentPlace = null;
+        currentDetail = null;
+        closeSheet();
+        resultsEl.classList.add('hidden');
+        clearEl.classList.add('hidden');
+        queryEl.value = '';
+        setStatus(userSource ? '已清除地点标记；定位仍保留' : '已清除标记');
+      });
       api.onClose(() => {
         cleaned = true;
-        if (abortCtl) abortCtl.abort();
+        searchSeq++;
+        routeSeq++;
+        detailSeq++;
         if (map) { try { map.remove(); } catch (e) {} map = null; }
       });
-      api.setSub('GPS / OSM · 真实地图与定位');
+      api.setSub('GPS / IP 定位 · 真实路线 · 全球地点');
+    }
+  });
+
+  /* ============================================================
+     电话黄页
+     ============================================================ */
+  Aether.registerApp({
+    id: 'yellow',
+    name: '黄页',
+    sub: '全球地点 · 紧急电话',
+    icon: 'book',
+    accent: '#ffcf7a',
+    order: 95,
+    render(root, api) {
+      root.classList.add('yp-root');
+      root.innerHTML = `
+        <div class="yp-tabs" role="tablist">
+          <button class="yp-tab on" data-tab="places">地点黄页</button>
+          <button class="yp-tab" data-tab="emergency">紧急电话</button>
+          <button class="yp-tab" data-tab="services">常用热线</button>
+        </div>
+        <section class="yp-pane" data-pane="places">
+          <div class="yp-search">
+            <div class="field"><span class="mono" style="font-size:9px;color:var(--dim-2)">⌕</span><input id="ypQuery" placeholder="搜索全球商户、餐厅、医院、景点" autocomplete="off"></div>
+            <button class="yp-btn" id="ypSearchBtn">搜索</button>
+          </div>
+          <p class="yp-note">OpenStreetMap 全球地点库 · 电话来自公开标签，未收录时可查看当地紧急号码</p>
+          <div class="yp-list" id="ypList"><div class="yp-empty">输入城市、街区或店名开始搜索</div></div>
+          <section class="yp-detail hidden" id="ypDetail"></section>
+        </section>
+        <section class="yp-pane hidden" data-pane="emergency">
+          <div class="yp-search">
+            <div class="field"><span class="mono" style="font-size:9px;color:var(--dim-2)">☎</span><input id="ypCountry" placeholder="搜索国家 / 地区 / 代码（如 日本 或 JP）" autocomplete="off"></div>
+            <button class="yp-btn" id="ypDetect">识别我的国家</button>
+          </div>
+          <div class="yp-chips" id="ypRegions"></div>
+          <p class="yp-note" id="ypCountryNote">号码可能调整，以当地官方公布为准；境外拨打需加国际区号。</p>
+          <div class="yp-countries" id="ypCountries"></div>
+        </section>
+        <section class="yp-pane hidden" data-pane="services">
+          <p class="yp-note">领事保护、支付、通信、出行、物流与设备支持；境外拨打需加国际区号。</p>
+          <div id="ypServices"></div>
+        </section>
+      `;
+      const P = Aether.places;
+      const H = Aether.hotlines;
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dial = n => (H ? H.dial(n) : String(n || '').replace(/[^\d+]/g, ''));
+      const safeUrl = u => { try { const x = new URL(String(u), location.href); return x.protocol === 'http:' || x.protocol === 'https:' ? x.href : ''; } catch (e) { return ''; } };
+      const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
+      const queryEl = root.querySelector('#ypQuery');
+      const listEl = root.querySelector('#ypList');
+      const detailEl = root.querySelector('#ypDetail');
+      const countryEl = root.querySelector('#ypCountry');
+      const countriesEl = root.querySelector('#ypCountries');
+      const countryNote = root.querySelector('#ypCountryNote');
+      const regionsEl = root.querySelector('#ypRegions');
+      let placeSeq = 0, region = '全部', detected = '';
+
+      root.querySelectorAll('.yp-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          root.querySelectorAll('.yp-tab').forEach(t => t.classList.toggle('on', t === tab));
+          root.querySelectorAll('.yp-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== tab.dataset.tab));
+        });
+      });
+
+      function emergencyFor(place) {
+        if (!H) return '';
+        const c = H.byCode(place.countrycode);
+        if (!c) return '';
+        const nums = [], seen = new Set();
+        const add = (label, num) => {
+          const key = String(num);
+          if (!num || seen.has(key)) return;
+          seen.add(key);
+          nums.push(`<a href="tel:${esc(dial(num))}"><span>${label}</span><strong>${esc(num)}</strong></a>`);
+        };
+        if (c.u) add('统一', c.u);
+        if (c.p) add('报警', c.p);
+        if (c.f) add('消防', c.f);
+        if (c.a) add('急救', c.a);
+        return `<div class="ms-emergency"><b>${esc(c.n)}当地紧急电话</b><div class="ms-emg-row">${nums.join('')}</div></div>`;
+      }
+
+      function openMap(place, detail, mode) {
+        const pending = {
+          name: place.name || '未命名地点',
+          lat: place.lat,
+          lon: place.lon,
+          category: place.category || '地点',
+          label: place.label || '',
+          country: place.country || '',
+          countrycode: place.countrycode || '',
+          address: detail && detail.address || ''
+        };
+        if (mode) pending.mode = mode;
+        Aether.store.set('map.pending', pending);
+        Aether.openApp('map');
+      }
+
+      async function selectPlace(place) {
+        detailEl.classList.remove('hidden');
+        detailEl.innerHTML = `
+          <div class="yp-detail-head">
+            <div><span class="yp-meta">${esc(place.category || '地点')}${place.distance != null ? ' · ' + P.fmtDistance(place.distance) : ''}</span><h3>${esc(place.name)}</h3><p>${esc(place.label || place.country || '')}</p></div>
+            <button class="icon-btn" id="ypDetailClose" aria-label="关闭">${Aether.icon('x')}</button>
+          </div>
+          <div class="yp-detail-body"><div class="ms-loading"><i></i>正在读取地址、电话与营业时间…</div>${emergencyFor(place)}</div>
+        `;
+        detailEl.querySelector('#ypDetailClose').addEventListener('click', () => detailEl.classList.add('hidden'));
+        detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        let detail = {};
+        try { detail = await P.details(place); } catch (err) { detail = { error: String(err.message || err) }; }
+        if (!detailEl || detailEl.classList.contains('hidden') || root.querySelector('#ypDetail') === null) return;
+        const body = detailEl.querySelector('.yp-detail-body');
+        if (!body) return;
+        const rows = [];
+        if (detail.address) rows.push(`<div class="ms-row"><span class="ms-label">地址</span><div class="ms-value">${esc(detail.address)}</div></div>`);
+        if (detail.phones && detail.phones.length) {
+          rows.push(`<div class="ms-row"><span class="ms-label">电话</span><div class="ms-value ms-phones">${detail.phones.map(n => `<a href="tel:${esc(dial(n))}">${Aether.icon('phone')}${esc(n)}</a>`).join('')}</div></div>`);
+        } else {
+          rows.push('<div class="ms-row"><span class="ms-label">电话</span><div class="ms-value dim">OSM 未收录商家电话</div></div>');
+        }
+        if (detail.hours) rows.push(`<div class="ms-row"><span class="ms-label">营业</span><div class="ms-value">${esc(detail.hours)}</div></div>`);
+        if (detail.operator) rows.push(`<div class="ms-row"><span class="ms-label">运营</span><div class="ms-value">${esc(detail.operator)}</div></div>`);
+        const site = detail.website ? safeUrl(detail.website) : '';
+        if (site) rows.push(`<div class="ms-row"><span class="ms-label">网站</span><div class="ms-value"><a href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(site))}</a></div></div>`);
+        if (detail.error) rows.push(`<div class="ms-hint">详情源暂时不可达（${esc(detail.error)}），坐标仍可用于地图与路线。</div>`);
+        body.innerHTML = `
+          <div class="ms-tags"><span class="ms-tag">${esc(place.category || '地点')}</span>${place.country ? `<span class="ms-tag">${esc(place.country)}</span>` : ''}</div>
+          <div class="ms-rows">${rows.join('')}</div>
+          ${emergencyFor(place)}
+          <div class="yp-actions">
+            <button class="yp-act" id="ypMapView">${Aether.icon('map')}地图查看</button>
+            <button class="yp-act primary" id="ypDrive">${Aether.icon('route')}驾车去</button>
+          </div>
+          <p class="ms-fine">地点数据 © OpenStreetMap 贡献者 · 商家电话与营业时间以官方公布为准</p>
+        `;
+        body.querySelector('#ypMapView').addEventListener('click', () => openMap(place, detail));
+        body.querySelector('#ypDrive').addEventListener('click', () => openMap(place, detail, 'driving'));
+      }
+
+      async function searchPlaces() {
+        const q = queryEl.value.trim();
+        if (!q) { api.toast('请输入城市、街区或商户名称'); return; }
+        const seq = ++placeSeq;
+        listEl.innerHTML = '<div class="yp-empty">正在全球地点库中搜索…</div>';
+        detailEl.classList.add('hidden');
+        const view = Aether.store.get('map.view', [31.2304, 121.4737, 12]);
+        try {
+          const found = await P.search(q, { lat: view[0], lon: view[1], limit: 40 });
+          if (seq !== placeSeq) return;
+          const list = found.slice(0, 30);
+          if (!list.length) {
+            listEl.innerHTML = '<div class="yp-empty">没有匹配地点，试试「城市 + 店名」或英文名称</div>';
+            return;
+          }
+          listEl.innerHTML = '';
+          list.forEach(place => {
+            const card = document.createElement('article');
+            card.className = 'yp-place';
+            card.innerHTML = `<div class="yp-place-main"><strong>${esc(place.name)}</strong><span class="yp-meta">${esc(place.category)}${place.distance != null ? ' · ' + P.fmtDistance(place.distance) : ''}</span><p>${esc(place.label || place.country || '')}</p></div><button class="yp-go" aria-label="查看详情">${Aether.icon('right')}</button>`;
+            card.addEventListener('click', () => selectPlace(place));
+            listEl.appendChild(card);
+          });
+          api.toast('找到 ' + list.length + ' 个地点', 'ok');
+        } catch (err) {
+          if (seq !== placeSeq) return;
+          listEl.innerHTML = '<div class="yp-empty">搜索服务不可达，请检查网络后重试</div>';
+          api.toast('搜索失败：' + (err.message || err), 'err');
+        }
+      }
+
+      root.querySelector('#ypSearchBtn').addEventListener('click', searchPlaces);
+      queryEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchPlaces(); } });
+
+      const REGIONS = ['全部', '亚洲', '欧洲', '非洲', '美洲', '大洋洲'];
+      regionsEl.innerHTML = REGIONS.map(r => `<button class="yp-chip${r === region ? ' on' : ''}" data-r="${r}">${r}</button>`).join('');
+      regionsEl.addEventListener('click', e => {
+        const b = e.target.closest('.yp-chip');
+        if (!b) return;
+        region = b.dataset.r;
+        regionsEl.querySelectorAll('.yp-chip').forEach(c => c.classList.toggle('on', c === b));
+        renderCountries();
+      });
+
+      function countryCard(c) {
+        const nums = [], seen = new Set();
+        const add = (label, num) => {
+          const key = String(num);
+          if (!num || seen.has(key)) return;
+          seen.add(key);
+          nums.push(`<a href="tel:${esc(dial(num))}"><span>${label}</span><strong>${esc(num)}</strong></a>`);
+        };
+        if (c.u) add('统一', c.u);
+        if (c.p) add('报警', c.p);
+        if (c.f) add('消防', c.f);
+        if (c.a) add('急救', c.a);
+        const extra = (c.x || []).map(([label, num]) => `<a href="tel:${esc(dial(num))}">${esc(label)} ${esc(num)}</a>`).join('');
+        return `<article class="yp-country${detected && detected === c.c ? ' hit' : ''}" id="yp-c-${esc(c.c)}"><header><div><strong>${esc(c.n)}</strong><span>${esc(c.r)} · ${esc(c.c)}</span></div><span class="yp-code">${esc(c.c)}</span></header><div class="yp-nums">${nums.join('')}</div>${extra ? `<div class="yp-extra">${extra}</div>` : ''}</article>`;
+      }
+
+      function renderCountries() {
+        const q = (countryEl.value || '').trim().toLowerCase();
+        const list = H.emergency.filter(c => (region === '全部' || c.r === region) && (!q || c.n.toLowerCase().indexOf(q) !== -1 || c.c.toLowerCase().indexOf(q) !== -1 || c.r.indexOf(q) !== -1));
+        countriesEl.innerHTML = list.length ? list.map(countryCard).join('') : '<div class="yp-empty">没有匹配的国家或地区</div>';
+        countryNote.textContent = list.length + ' 个国家/地区 · 点击号码直接拨号；境外拨打需加国际区号，号码以当地官方公布为准。';
+      }
+      countryEl.addEventListener('input', renderCountries);
+      root.querySelector('#ypDetect').addEventListener('click', async () => {
+        const btn = root.querySelector('#ypDetect');
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = '识别中…';
+        try {
+          const ip = await P.ipLocate();
+          detected = String(ip.country || '').toUpperCase();
+          region = '全部';
+          regionsEl.querySelectorAll('.yp-chip').forEach(c => c.classList.toggle('on', c.dataset.r === '全部'));
+          countryEl.value = '';
+          renderCountries();
+          const c = H.byCode(detected);
+          countryNote.textContent = 'IP 定位：' + [ip.city, ip.region].filter(Boolean).join(' · ') + ' · ' + (c ? c.n : detected) + ' — 已高亮当地紧急号码。';
+          const hit = root.querySelector('#yp-c-' + detected);
+          if (hit) { hit.scrollIntoView({ behavior: 'smooth', block: 'center' }); api.toast('已定位到 ' + (c ? c.n : detected), 'ok'); }
+          else api.toast('IP 定位：' + (c ? c.n : detected), 'ok');
+        } catch (err) {
+          api.toast('IP 定位失败：' + (err.message || err), 'err');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = old;
+        }
+      });
+
+      root.querySelector('#ypServices').innerHTML = H.services.map(sec => `
+        <section class="yp-sec">
+          <h3>${Aether.icon(sec.icon)}<span>${esc(sec.title)}</span></h3>
+          <div class="yp-svc">${sec.items.map(it => `<article class="yp-svc-item"><div><strong>${esc(it.n)}</strong><span>${esc(it.d)}</span></div><a href="tel:${esc(dial(it.t))}">${esc(it.t)}</a></article>`).join('')}</div>
+        </section>
+      `).join('');
+
+      renderCountries();
+      api.setSub('地点 · 紧急电话 · 常用热线');
     }
   });
 

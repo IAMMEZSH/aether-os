@@ -1,6 +1,6 @@
 /* AETHER OS · Service Worker
    App shell 缓存 + 离线回退；不拦截桥接 API 与跨域请求。 */
-const VERSION = 'aether-v1.1.0-b3';
+const VERSION = 'aether-v1.2.0-b1';
 const SHELL = [
   './',
   './index.html',
@@ -12,9 +12,13 @@ const SHELL = [
   './js/core.js',
   './js/terminal.js',
   './js/apps-social.js',
+  './js/places.js',
+  './js/hotlines.js',
   './js/apps-tools.js',
   './js/files.js',
   './js/office.js',
+  './vendor/leaflet/leaflet.js',
+  './vendor/leaflet/leaflet.css',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

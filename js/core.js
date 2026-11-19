@@ -53,11 +53,20 @@
     video: '<rect x="3" y="5.5" width="13" height="13" rx="2.5"/><path d="M16 10l5-3v10l-5-3z"/>',
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     location: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
-    home: '<path d="M3.5 11L12 3.5 20.5 11"/><path d="M6 9.5V20h12V9.5"/>'
+    home: '<path d="M3.5 11L12 3.5 20.5 11"/><path d="M6 9.5V20h12V9.5"/>',
+    phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A17 17 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z"/>',
+    book: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H20v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M4 17h16M8 7h8M8 10.5h5"/>',
+    route: '<circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="5.5" r="2.5"/><path d="M8 18.5h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h1"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3.5 12h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+    wallet: '<rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 15h2"/>',
+    plane: '<path d="M3 13.5l18-8-7 17-3-6.5z"/>',
+    box: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.5 2"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1.2-1.2"/>'
   };
 
   const Aether = {
-    version: '1.1.0',
+    version: '1.2.0',
     build: '2026.11.19',
     apps: new Map(),
     store: {
@@ -124,12 +133,12 @@
         Aether.toast('Android 用 Chrome 菜单「安装应用」；iPhone 用 Safari 分享→「添加到主屏幕」');
       }
     },
-    setGPS(lat, lng) {
+    setGPS(lat, lng, source = 'gps') {
       const hud = $('#hudgps');
       if (hud) {
         hud.textContent = lat.toFixed(4) + ', ' + lng.toFixed(4);
         const sub = hud.parentElement && hud.parentElement.querySelector('em');
-        if (sub) sub.textContent = 'REAL GEOLOCATION';
+        if (sub) sub.textContent = source === 'ip' ? 'IP APPROX · CITY LEVEL' : 'REAL GEOLOCATION';
       }
     }
   };
@@ -355,7 +364,7 @@
 
   /* ---------- 启动 ---------- */
   const bootLines = [
-    ['AETHER CORE v1.1.0 · WEB COMPOSITOR', 'dim'],
+    ['AETHER CORE v1.2.0 · WEB COMPOSITOR', 'dim'],
     ['mount /dev/aether/vfs ............ OK', 'ok'],
     ['init terminal bridge multiplexer ... OK', 'ok'],
     ['load neon ui compositor ............ OK', 'ok'],

@@ -70,8 +70,8 @@ def hero():
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
     d.rounded_rectangle([60, 60, W - 60, H - 60], radius=36, outline=(60, 120, 160, 70), width=1)
-    d.text((100, 92), "RELEASE 1.1.0 · BUILD 2026.11.19", font=font(20), fill=(110, 220, 255, 210))
-    d.text((W - 100, 92), "PWA · WEB CORE · 16 APPS", font=font(20), fill=(190, 200, 220, 160), anchor="ra")
+    d.text((100, 92), "RELEASE 1.2.0 · BUILD 2026.11.19", font=font(20), fill=(110, 220, 255, 210))
+    d.text((W - 100, 92), "PWA · WEB CORE · 17 APPS", font=font(20), fill=(190, 200, 220, 160), anchor="ra")
 
     # icon with glow; luminance mask removes the icon's dark square backdrop
     icon = Image.open(ICON).convert("RGBA").resize((380, 380), Image.LANCZOS)
@@ -92,16 +92,16 @@ def hero():
     d = ImageDraw.Draw(img)
     x = 700
     d.text((x, 268), "AETHER OS", font=font(96, bold=True), fill=(240, 248, 255))
-    d.text((x + 2, 380), "文件 · 办公 · 代码 · 相机 · 全场景套件", font=font(34), fill=(150, 230, 255))
+    d.text((x + 2, 380), "地图 · 黄页 · 办公 · 代码 · 全场景套件", font=font(34), fill=(150, 230, 255))
     d.text((x, 452), "一个界面，连接 Web 与真实 Linux。", font=font(30, light=True), fill=(185, 196, 214))
     y = 520
     x2 = pill(d, x, y, "PWA 可安装", font(22), (140, 240, 255), (60, 160, 200))
-    x2 = pill(d, x2 + 14, y, "16 个应用", font(22), (255, 170, 240), (200, 70, 170))
+    x2 = pill(d, x2 + 14, y, "17 个应用", font(22), (255, 170, 240), (200, 70, 170))
     pill(d, x2 + 14, y, "13 语言 DEBUG", font(22), (190, 255, 160), (90, 170, 90))
     y2 = 584
     x3 = pill(d, x, y2, "Termux · Ubuntu / Kali", font(22), (255, 170, 240), (200, 70, 170))
     pill(d, x3 + 14, y2, "iSH · Alpine", font(22), (190, 255, 160), (90, 170, 90))
-    d.text((x, 690), "真实文件 / 办公 / 相机  ·  真实地图与定位  ·  本地优先", font=font(24), fill=(160, 175, 200))
+    d.text((x, 690), "全球地点与电话  ·  真实路线与定位  ·  本地优先", font=font(24), fill=(160, 175, 200))
     d.text((x, 736), "电话 / 短信 / 微信 / QQ / 支付宝交接系统原生 App，详见能力边界。", font=font(22, light=True), fill=(130, 145, 170))
 
     d.text((100, H - 118), "不修改固件  ·  不替换手机系统  ·  不承诺 App Store / Google Play 兼容", font=font(24), fill=(120, 138, 165))
@@ -134,10 +134,10 @@ def architecture():
     W, H = 1600, 1000
     img = bg(W, H).convert("RGBA")
     d = ImageDraw.Draw(img)
-    d.text((90, 70), "AETHER OS 1.1.0 架构", font=font(54, bold=True), fill=(240, 247, 255))
-    d.text((92, 138), "16 个应用的前端界面，可选接入真实 Linux；无桥接时自动降级为静态演示。", font=font(24, light=True), fill=(155, 175, 200))
+    d.text((90, 70), "AETHER OS 1.2.0 架构", font=font(54, bold=True), fill=(240, 247, 255))
+    d.text((92, 138), "17 个应用的前端界面，可选接入真实 Linux；无桥接时自动降级为静态演示。", font=font(24, light=True), fill=(155, 175, 200))
 
-    box(d, [390, 210, 1150, 316], "PWA 前端  ·  16 个应用  ·  6 个 JS 模块", "终端 · 文件 · 办公 · 代码 · 相机 · 地图 · 社交 · 相册 · 设置", (80, 200, 255), 34, 20)
+    box(d, [390, 210, 1150, 316], "PWA 前端  ·  17 个应用  ·  8 个业务 JS 模块", "终端 · 文件 · 地图 · 黄页 · 办公 · 代码 · 相机 · 相册 · 设置", (80, 200, 255), 34, 20)
     arrow(d, (800, 316), (800, 380))
 
     box(d, [340, 382, 1180, 500], "本地桥接  bridge/server.py", "Token 鉴权 · /api/exec · /api/studio · /api/files/* · /api/gallery/*", (255, 80, 210), 34, 19)
@@ -172,7 +172,7 @@ def capabilities():
     d = ImageDraw.Draw(img)
     d.text((90, 62), "能力边界：真实 / 模拟 / 不可能", font=font(52, bold=True), fill=(240, 247, 255))
     d.text((92, 132), "把每一类能力讲清楚，比模糊承诺更重要。", font=font(24, light=True), fill=(155, 175, 200))
-    d.text((W - 90, 76), "RELEASE 1.1.0", font=font(22), fill=(110, 220, 255), anchor="ra")
+    d.text((W - 90, 76), "RELEASE 1.2.0", font=font(22), fill=(110, 220, 255), anchor="ra")
 
     cols = [
         ("真实可用", (110, 255, 170), [
@@ -181,7 +181,9 @@ def capabilities():
             "PDF / DOCX / XLSX / PPTX 编辑",
             "13 语言运行 / 编译 / DEBUG",
             "系统相机原始文件 + 对焦变焦",
-            "真实地图瓦片 / 搜索 / GPS",
+            "真实地图搜索 / GPS / IP 定位",
+            "地点详情 / 电话 / 三种真实路线",
+            "全球黄页：212 个国家紧急电话",
             "系统选择器 + 桥接相册",
             "电话 / 短信 / 微信 / 支付宝交接",
             "真 Linux 桥接 + 真实省电",
@@ -210,7 +212,7 @@ def capabilities():
             "接管基带、射频或运营商",
         ]),
     ]
-    y0, y1 = 210, 880
+    y0, y1 = 210, 900
     x = 90
     for title, color, items in cols:
         w = 470
@@ -218,14 +220,14 @@ def capabilities():
         d.rounded_rectangle([x, y0, x + w, y0 + 6], radius=3, fill=color)
         d.text((x + 30, y0 + 52), title, font=font(32, bold=True), fill=color, anchor="lm")
         yy = y0 + 118
-        gap = min(58, max(44, (y1 - yy - 30) // max(1, len(items) - 1)))
+        gap = min(52, max(42, (y1 - yy - 34) // max(1, len(items) - 1)))
         for it in items:
             d.ellipse([x + 32, yy + 9, x + 42, yy + 19], fill=color)
             d.text((x + 60, yy), it, font=font(21, light=True), fill=(205, 214, 230))
             yy += gap
         x += w + 40
 
-    d.text((90, H - 62), "AETHER OS 1.1.0 · 运行在浏览器 / PWA 中的概念系统与真 Linux 桥接工具，不是手机固件。", font=font(22), fill=(145, 158, 180))
+    d.text((90, H - 62), "AETHER OS 1.2.0 · 运行在浏览器 / PWA 中的概念系统与真 Linux 桥接工具，不是手机固件。", font=font(22), fill=(145, 158, 180))
     img.convert("RGB").save(DOCS / "intro-capabilities.png", quality=95)
     print("capabilities ok")
 

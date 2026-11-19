@@ -1,6 +1,6 @@
 # AETHER OS 完整说明书
 
-> 适用版本：**1.1.0**（构建 2026.11.19）  
+> 适用版本：**1.2.0**（构建 2026.11.19）  
 > 文档类型：安装、使用、部署、开发与安全说明  
 > 适用平台：Android（Chrome / Termux）、iPhone / iPad（Safari / iSH）、桌面浏览器（预览）  
 > 项目性质：PWA 概念系统 + 可选的本地 Linux 桥接，**不是手机固件**
@@ -34,7 +34,7 @@
 AETHER OS 是一个运行在浏览器中的「移动系统概念壳」：
 
 - 具备完整的启动 / 锁屏 / 桌面 / 状态栏 / 应用窗口 / 过渡动画；
-- 内置 16 个应用，覆盖终端、通讯、社交、文件、办公、代码、地图、笔记、媒体、相册、相机与设置；
+- 内置 17 个应用，覆盖终端、通讯、社交、文件、办公、代码、地图、黄页、笔记、媒体、相册、相机与设置；
 - 文件管理器可连接系统目录、手机存储桥接与浏览器私有文件系统；
 - 办公套件可打开并修改 PDF / DOCX / XLSX / PPTX 等真实文件；
 - 代码工作室支持 13 种语言（含 Kotlin / Swift），连接桥接后可真实编译、运行与错误定位；
@@ -64,7 +64,8 @@ AETHER OS 是一个运行在浏览器中的「移动系统概念壳」：
 | 打电话、发短信、微信、QQ、办公 | 电话 / 短信通过 `tel:` / `sms:` 交接系统 App；微信 / QQ 唤起官方 App + 系统分享；办公为真实本地应用 | 网页不能读系统短信 / 通话记录或腾讯聊天，也不能代发消息 |
 | Linux 与 Windows 全部命令 | Linux 命令可真可模拟；CMD / PowerShell 为常用子集模拟 | 「全部命令」不现实；真 Windows 需 Windows 设备 |
 | 所有语言编译器、汇编、调试 | 代码工作室列出 13 种语言；浏览器内运行 JS / Python、预览 HTML / CSS，桥接后真实编译 C / C++ / Java / Kotlin / Swift / Rust / Go / PHP / 汇编并定位错误行列 | 工具链不内置，取决于 rootfs 安装的软件包；Kotlin / Swift 为命令行程序，不构建 APK / iOS App，不是「所有语言」 |
-| 全球地图定位与导航 | 真实瓦片、搜索、GPS 定位、直线距离 | 不提供转向级导航与实时路况 |
+| 全球地图定位与导航 | 真实瓦片、全球地点搜索、GPS / IP 定位、地点电话与营业信息、驾车 / 步行 / 骑行真实路线与中文分步指引 | 不提供实时路况、公交 / 地铁换乘与离线路径规划 |
+| 全球电话黄页 | 212 个国家与地区的紧急电话 + 7 类常用服务热线 + 全球地点黄页 | 号码为本地静态数据，可能调整，不实时校验 |
 | 未来科技风 UI 与启动界面 | 完整实现 | 启动、锁屏、桌面、应用、主题、壁纸 |
 | 视频 / 音乐播放器、图片查看器 | 本地文件真实播放 / 查看；合成音乐 | 解码能力取决于浏览器 |
 | 备忘录、浏览器 | localStorage 备忘录；iframe 浏览器 | 浏览器受站点嵌入策略限制 |
@@ -116,14 +117,14 @@ Linux 内核只有一个。Ubuntu、Kali、deepin 是在内核之上构建的用
 - Android 7.0+；Termux 需要约 2–4 GB 可用存储（Ubuntu + Kali）。
 - iPhone / iPad：iOS 15+ 建议；iSH 为 x86 模拟，性能有限。
 - 屏幕：360 px 宽以上体验最佳；文档截图使用 525×553 移动视口。
-- 网络：地图 Leaflet 脚本、瓦片、搜索、Pyodide 首次加载与桥接部署需要网络；办公文档库随项目本地提供。
+- 网络：地图瓦片、搜索、地点详情与路线规划需要网络；Leaflet、黄页与办公文档库随项目本地提供。Pyodide 首次加载与桥接部署需要网络。
 - 相机：原生通道需要系统相机与文件选择支持；取景器通道需要 `getUserMedia`（HTTPS 或 localhost）与相机权限。
 
 ### 2.4 权限
 
 | 权限 | 用途 | 何时请求 |
 |---|---|---|
-| 定位 | 地图显示当前位置、计算直线距离 | 首次点击「定位」 |
+| 定位 | 地图显示当前位置；被拒绝时回退到 IP 城市级粗略定位 | 首次点击「定位」或规划路线且尚无位置时 |
 | 存储 / 文件选择 | 导入音视频、图片；打开 / 另存办公文件；文件管理器导入导出 | 点击相应按钮时由浏览器选择器处理 |
 | 目录读写 | 文件管理器「本机目录」直接增删改查 | 首次添加目录时由 File System Access API 授权，可持久保存授权 |
 | 相机 | 取景器预览与拍摄；原生通道调用系统相机 | 打开取景器或原生相机时由浏览器 / 系统请求 |
@@ -139,12 +140,12 @@ Termux / iSH 的存储与后台权限由各自 App 和手机系统管理。系�
 
 Release 附件：
 
-- `aether-os-1.1.0.zip`：完整项目（界面、桥接、字体、图标、文档、截图）；
+- `aether-os-1.2.0.zip`：完整项目（界面、桥接、字体、图标、文档、截图）；
 - `SHA256SUMS.txt`：zip 的 SHA-256 校验值。
 
 校验值以 Release 附件中的 `SHA256SUMS.txt` 为准；解压后再核对包内文件。
 
-zip 解压后目录为 `aether-os-1.1.0/`，包含：
+zip 解压后目录为 `aether-os-1.2.0/`，包含：
 
 ```text
 index.html
@@ -162,13 +163,13 @@ README.md  LICENSE
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\aether-os-1.1.0.zip -Algorithm SHA256
+Get-FileHash .\aether-os-1.2.0.zip -Algorithm SHA256
 ```
 
 macOS / Linux：
 
 ```bash
-sha256sum aether-os-1.1.0.zip
+sha256sum aether-os-1.2.0.zip
 ```
 
 将输出与 `SHA256SUMS.txt` 对比。若不一致，请重新下载，不要继续安装。
@@ -185,7 +186,7 @@ sha256sum aether-os-1.1.0.zip
 
 任选一种：
 
-- **浏览器下载**：在手机浏览器下载 `aether-os-1.1.0.zip`，保存到「下载」。
+- **浏览器下载**：在手机浏览器下载 `aether-os-1.2.0.zip`，保存到「下载」。
 - **电脑传输**：用数据线或局域网传到手机。
 - **Git**（如已安装）：
 
@@ -201,8 +202,8 @@ termux-setup-storage     # 允许访问共享存储
 pkg update -y
 pkg install -y python unzip
 cd ~/storage/downloads
-unzip aether-os-1.1.0.zip -d ~
-cd ~/aether-os-1.1.0
+unzip aether-os-1.2.0.zip -d ~
+cd ~/aether-os-1.2.0
 ```
 
 如使用 git 克隆，目录名可能是 `aether-os`，后续命令按实际路径调整。
@@ -232,7 +233,7 @@ python3 bridge/server.py
 启动输出示例：
 
 ```text
-  █ AETHER OS · LOCAL BRIDGE 1.1.0
+  █ AETHER OS · LOCAL BRIDGE 1.2.0
   ────────────────────────────────────────────
   UI      http://127.0.0.1:8787
   Mode    TERMUX
@@ -299,7 +300,7 @@ proot-distro install archlinux
 
 推荐：
 
-1. 在「文件」App 中新建文件夹，例如「AETHER」，把 `aether-os-1.1.0` 文件夹放入。
+1. 在「文件」App 中新建文件夹，例如「AETHER」，把 `aether-os-1.2.0` 文件夹放入。
 2. 打开 iSH，执行：
 
 ```sh
@@ -311,7 +312,7 @@ mount -t ios . /mnt
 3. 进入项目：
 
 ```sh
-cd /mnt/aether-os-1.1.0
+cd /mnt/aether-os-1.2.0
 ```
 
 也可以只使用 iSH 自己的文件空间（在「文件」App 的「iSH」位置），把项目复制进去后从 `~` 进入。
@@ -348,7 +349,7 @@ python3 bridge/server.py
 ### 3.5 桌面预览
 
 ```bash
-cd aether-os-1.1.0
+cd aether-os-1.2.0
 python3 bridge/server.py
 ```
 
@@ -377,7 +378,7 @@ python3 -m http.server 8787
 
 **更新（Termux 内直接替换）**
 
-1. 下载新版本 zip，解压覆盖项目目录（例如 `~/aether-os-1.1.0`）。
+1. 下载新版本 zip，解压覆盖项目目录（例如 `~/aether-os-1.2.0`）。
 2. 停止旧桥接；从新目录启动。
 3. 在应用设置 →「系统更新」中选择来源并刷新，或按传统方式刷新页面两次。
 
@@ -385,8 +386,8 @@ python3 -m http.server 8787
 
 ```bash
 cd ~
-unzip -o aether-os-1.1.0.zip -d ~
-cd ~/aether-os-1.1.0
+unzip -o aether-os-1.2.0.zip -d ~
+cd ~/aether-os-1.2.0
 bash bridge/setup-termux.sh
 python3 bridge/server.py
 ```
@@ -429,7 +430,7 @@ python3 bridge/server.py
 - 顶部状态栏：品牌、`WEB CORE` 标签、信号、蜂窝代际、Wi-Fi、电量、时钟。
 - Hero 卡片：`SYSTEM ONLINE · CONCEPT BUILD`、AETHEROS 字标、三种 Shell 标签。
 - 系统卡片：NETWORK（在线状态 / 链路）、GPS（授权状态）、POWER（电量）。
-- 应用网格：16 个应用，带分类点缀与 `order` 排序。
+- 应用网格：17 个应用，带分类点缀与 `order` 排序。
 - 底部 Dock：电话、短信、微信、浏览器、终端。
 
 ### 4.4 深链接
@@ -906,23 +907,53 @@ x-aether-token: <令牌>
 
 <p align="center"><img src="shot-map.png" alt="地图" width="420"> <img src="shot-map2.png" alt="地图定位" width="420"></p>
 
-**瓦片**：Esri Dark Gray Canvas Base + Reference；无需 API Key，遵循 Esri 条款。
+**瓦片**：Esri Dark Gray Canvas Base + Reference；无需 API Key，遵循 Esri 条款。Leaflet 1.9.4 已放在本地 `vendor/leaflet/`，不依赖 CDN。
 
 **搜索**：
 
 1. 输入地点，点击放大镜或回车。
-2. Photon API 优先；失败时 Nominatim 兜底；总超时 12 秒。
-3. 结果列表点击后放置标记；若已有定位，绘制虚线直线并显示公里数。
+2. 使用 Photon 全球地理编码，8 秒超时；单次请求最多 40 条。
+3. 客户端去重后按「名称匹配度 + 地点类型 + 与当前位置距离」排序：精确名称、景点 / 博物馆 / 塔等优先，住宅区、公交站、道路等降权，避免同名小区压过目标地标；列表最多展示 20 条。
+4. 点击结果放置标记，并打开底部详情面板。
 
-**定位**：点击「定位」，浏览器请求权限；成功后地图飞至当前位置。定位精度取决于设备与网络。
+**定位**：
+
+- 点击「定位」调用浏览器 Geolocation API；需要 HTTPS 或 localhost 与用户授权，成功后地图飞到当前位置。
+- 授权被拒绝、超时或设备无 GPS 时，回退到 `ipinfo.io` 的 IP 粗略定位；精度只到城市级，界面会显示「IP APPROX · CITY LEVEL / IP 粗略定位」。
+- GPS 授权状态会同步到桌面系统卡片。
+
+**地点详情**：选中结果后读取 OpenStreetMap / Overpass 标签，展示地址、电话（`phone`、`contact:phone`、`contact:mobile`、`mobile`）、营业时间、官网、运营方 / 品牌，并根据国家显示紧急电话；OSM 未收录电话时会明确提示「OSM 未收录电话」。详情请求失败不影响地图标记与路线。
+
+**路线**：
+
+1. 在详情面板选择驾车 / 步行 / 骑行，再点「开始规划」。
+2. 起点优先使用当前 GPS；没有定位时自动请求 GPS 或 IP 粗略定位。
+3. 驾车使用 OSRM 公共路由，步行与骑行使用 FOSSGIS 公共路由；返回真实道路几何、总距离、预计时间与中文分步指引。
+4. 路线以发光折线与主线绘制，点击任一步骤可定位到对应路口。
 
 **限制**：
 
-- 不提供转向级导航、实时路况、离线地图包。
+- 不提供实时路况、公交 / 地铁换乘、离线搜索与离线路径规划；瓦片、搜索、详情与路线均需网络，离线只显示已缓存瓦片。
 - 地图视图保存在 `aether.map.view`。
-- 第三方搜索可能限流或不可用。
+- Photon、Overpass、OSRM、FOSSGIS 均为公共第三方服务，可能限流或不可用；失败时界面会显示具体原因，不影响其他功能。
 
-### 7.11 备忘录
+### 7.11 黄页
+
+<p align="center"><img src="shot-yellow.png" alt="黄页" width="420"></p>
+
+**三个页签**：
+
+1. **地点黄页**：与地图共用 Photon 全球搜索。搜索关键词后显示地址、电话、营业时间与官网；可以「查看地图」或在详情中选择驾车 / 步行 / 骑行，直接交给地图规划路线。
+2. **紧急电话**：内置 **212 个国家与地区**的报警、消防、急救、统一紧急号码与补充号码；支持按大洲筛选、按国家名称或代码搜索，并根据 IP 粗略定位高亮当前国家或地区。点击号码通过 `tel:` 交给系统电话 App。
+3. **常用热线**：7 类共 40 余条，包括领事与海外求助、支付与银行卡、通信与运营商、铁路 / 航空 / 出行、快递与物流、手机与电脑支持、消费与政务；支持点击号码直接呼出。
+
+**数据边界**：
+
+- 黄页数据保存在本地 `js/hotlines.js`，不依赖网络即可查看。
+- 号码可能随当地政策调整，以官方最新公布为准；网页无法验证号码是否仍有效。
+- 境外拨打需要加拨正确的国际区号；`tel:` 只负责把号码交给系统，网页不承载通话，也无法确认是否拨出。
+
+### 7.12 备忘录
 
 <p align="center"><img src="shot-notes.png" alt="备忘录" width="420"></p>
 
@@ -932,7 +963,7 @@ x-aether-token: <令牌>
 - 返回按钮关闭编辑器；删除按钮带确认。
 - 数据保存 `aether.notes.items`；清除站点数据会删除全部笔记。
 
-### 7.12 媒体
+### 7.13 媒体
 
 <p align="center"><img src="shot-media.png" alt="媒体" width="420"></p>
 
@@ -949,7 +980,7 @@ x-aether-token: <令牌>
 
 **限制**：合成音乐不是真实曲目；页面关闭后停止播放；导入文件不持久化。
 
-### 7.13 相册
+### 7.14 相册
 
 <p align="center"><img src="shot-photos.png" alt="相册" width="420"></p>
 
@@ -970,7 +1001,7 @@ x-aether-token: <令牌>
 
 **限制**：浏览器 / PWA 不能绕过系统权限静默枚举整个系统相册；相册只读取，不会删除或修改你系统相册中的原始照片。相机拍摄的 AETHER 副本保存在本应用的 IndexedDB 中，不会自动写回系统「照片」App，可通过「下载原图」或系统分享导出。
 
-### 7.14 文件
+### 7.15 文件
 
 <p align="center"><img src="shot-files.png" alt="文件管理器" width="420"></p>
 
@@ -989,7 +1020,7 @@ x-aether-token: <令牌>
 - 桥接单文件读写上限 64 MB；路径限制在授权根目录内，拒绝目录穿越、符号链接逃逸和 `.aether_token` / `.tsowner` 等受保护文件。
 - 删除操作不可撤销；网页无法绕过系统授权访问任意路径。
 
-### 7.15 相机
+### 7.16 相机
 
 <p align="center"><img src="shot-camera.png" alt="相机" width="420"></p>
 
@@ -1008,7 +1039,7 @@ x-aether-token: <令牌>
 - 相机副本不会自动写入系统「照片」App。需要进入系统相册时，请用「下载原图」或系统分享保存。
 - 网页不能调节系统相机的专业参数（ISO、快门、RAW、镜头切换）、不能在后台录制，也不能绕过系统相机权限。
 
-### 7.16 设置
+### 7.17 设置
 
 <p align="center"><img src="shot-settings.png" alt="设置" width="420"></p>
 
@@ -1039,7 +1070,8 @@ x-aether-token: <令牌>
 `sw.js` 预缓存：
 
 - `index.html`、manifest、`css/fonts.css`、`css/style.css`、`css/files.css`、`css/office.css`；
-- 6 个 JS 文件：`core`、`terminal`、`apps-social`、`apps-tools`、`files`、`office`；
+- 8 个业务 JS 文件：`core`、`terminal`、`apps-social`、`places`、`hotlines`、`apps-tools`、`files`、`office`；
+- 本地 Leaflet 1.9.4 的脚本、样式与标记图片；
 - SVG / 192 / 512 图标；
 - Orbitron / Rajdhani 字体文件。
 
@@ -1053,9 +1085,9 @@ x-aether-token: <令牌>
 
 ### 8.3 离线能力边界
 
-离线可用：桌面、终端（模拟）、备忘录、AETHER 空间文件、已导入的相册副本、设置，以及已缓存的办公库与地图瓦片。
+离线可用：桌面、终端（模拟）、备忘录、黄页全部紧急电话与常用热线、AETHER 空间文件、已导入的相册副本、设置，以及已缓存的办公库、Leaflet 脚本与地图瓦片。
 
-离线不可用：Leaflet 脚本首次加载、真实地图新瓦片 / 搜索、Pyodide 首次加载、未缓存过的办公解析库、真实 Linux 命令与桥接文件 / 相册。电话 / 短信 / 微信 / QQ / 支付宝的交接依赖系统 App 与 URL Scheme，离线时仍可发起跳转，但实际通信由系统 App 负责。
+离线不可用：真实地图新瓦片 / 搜索 / 地点详情 / 路线规划、Pyodide 首次加载、未缓存过的办公解析库、真实 Linux 命令与桥接文件 / 相册。电话 / 短信 / 微信 / QQ / 支付宝的交接依赖系统 App 与 URL Scheme，离线时仍可发起跳转，但实际通信由系统 App 负责。
 
 ### 8.4 更新缓存与自动提示
 
@@ -1068,7 +1100,7 @@ x-aether-token: <令牌>
 
 维护者修改静态资源后：
 
-1. 修改 `sw.js` 中 `VERSION`（当前为 `aether-v1.1.0-b3`）。
+1. 修改 `sw.js` 中 `VERSION`（当前为 `aether-v1.2.0-b1`）。
 2. 同步提升 `version.json` 的 `version` / `build` / `notes`，并发布到 GitHub 与 GitCode。若只在其中一个平台提升，用户仍会从可达的那个来源收到提示。
 3. 若未部署对应平台 Pages，用户需先把新文件更新到当前站点/本地目录；浏览器不能跨源替换已安装 PWA 的包，这是平台边界。
 4. 传统方式：刷新页面两次，或在开发者工具 → Application → Service Workers 中 Unregister 并清除 Cache Storage。
@@ -1107,15 +1139,17 @@ OPFS 中的 AETHER 空间文件由浏览器管理，不在 localStorage 中。�
 
 | 目标 | 目的 | 数据传输 |
 |---|---|---|
-| unpkg CDN | 加载 Leaflet 1.9.4 脚本与样式 | IP、UA |
+| Overpass 镜像 | 读取 OSM 地点详情 | OSM 要素编号、IP、UA |
+| OSRM / FOSSGIS | 驾车 / 步行 / 骑行路线 | 起点与终点坐标、IP、UA |
+| ipinfo.io | 定位失败时的 IP 城市级粗略定位 | IP、UA |
 | Esri 瓦片 | 地图底图 | 瓦片坐标、IP、UA |
-| Photon / Nominatim | 地点搜索 | 搜索关键词、IP、UA |
+| Photon | 全球地点搜索 | 搜索关键词、IP、UA |
 | jsDelivr CDN | Pyodide 0.26.4 Python 运行时 | IP、UA |
 | GitHub Raw | 读取 `version.json` 检查更新 | IP、UA；不发送本地数据 |
 | GitCode API | 读取 `version.json` 检查更新 | IP、UA；不发送本地数据 |
 | 本地桥接 | 命令、编译、文件、相册 | 命令 / 源码 / 文件内容（仅回环或你显式开启的局域网） |
 
-办公解析库（pdf-lib、SheetJS、mammoth、JSZip）与字体、图标随项目本地提供，不请求第三方 CDN。无遥测、无账号、无广告、无第三方分析脚本。
+办公解析库（pdf-lib、SheetJS、mammoth、JSZip）、Leaflet 1.9.4、黄页数据、字体与图标随项目本地提供，不请求第三方 CDN。无遥测、无账号、无广告、无第三方分析脚本。
 
 ### 9.3 桥接威胁模型
 
@@ -1161,9 +1195,12 @@ OPFS 中的 AETHER 空间文件由浏览器管理，不在 localStorage 中。�
 | 终端点击无反应 / 应用缺失 | 旧缓存了有语法错误的脚本 | 注销 SW、清除 Cache Storage、刷新 |
 | 启动后一直停在锁屏 | 点击 / 上滑未触发 | 点击屏幕中央；检查是否被其他覆盖层拦截 |
 | 地图空白 / 灰块 | 无网络或瓦片服务不可达 | 检查网络；等待瓦片加载；重试搜索 |
-| 地图搜索「没有结果」 | 关键词无匹配或第三方限流 | 换关键词；稍后重试；Photon 已作为主搜索 |
-| 地图一直「搜索中…」 | 网络阻塞（12 秒超时） | 等待超时后重试；检查网络 |
-| 定位失败 | 非安全上下文 / 拒绝授权 | 使用 localhost 或 HTTPS；在浏览器设置允许定位 |
+| 地图搜索「没有结果」 | 关键词无匹配或第三方限流 | 换更完整的名称 / 地标名；稍后重试 |
+| 地图一直「搜索中…」 | 网络阻塞（8 秒超时） | 等待超时后重试；检查网络 |
+| 定位失败 | 非安全上下文 / 拒绝授权 / 无 GPS | 使用 localhost 或 HTTPS；允许定位；失败时会回退到 IP 城市级定位 |
+| 定位只到城市 | 浏览器定位被拒绝或超时，使用了 IP 回退 | 允许精确位置权限；IP 定位精度只到城市级 |
+| 地点详情没有电话 | OSM 未收录该地点的电话标签 | 属正常现象；可查看官网或改用其他渠道 |
+| 路线规划失败 | OSRM / FOSSGIS 公共路由不可达或起终点不可达 | 稍后重试；更换起终点；驾车 / 步行 / 骑行可分别尝试 |
 | Python 一直加载 / 失败 | CDN 不可达、首次体积大 | 稍后重试；检查网络；或使用真 Linux 的 Python |
 | 桥接面板「未检测到桥接」 | 服务未启动 / 地址错误 | 确认 `python3 bridge/server.py` 正在运行；地址为 `http://127.0.0.1:8787` |
 | 连接提示「访问令牌无效」 | 令牌复制不完整 / 已更换 | 从启动输出或 `.aether_token` 重新复制 |
@@ -1211,7 +1248,10 @@ PWA 本身很轻。Termux 中安装 Ubuntu + Kali、运行 proot 与编译任务
 不能。AETHER 不内置微信客户端；「微信」页面只负责唤起已安装的官方 App，或把文字交给系统分享。
 
 **Q：地图能导航吗？**  
-能查看位置、搜索地点、计算直线距离；没有转向级导航。
+能。地图支持全球地点搜索、GPS / IP 定位、地点电话与营业信息，以及驾车 / 步行 / 骑行真实路线与中文分步指引；不提供实时路况、公交 / 地铁换乘或离线路径规划。
+
+**Q：黄页里的号码能直接拨打吗？**  
+点击号码会通过 `tel:` 交给系统电话 App，网页本身不拨号。号码为本地静态数据，可能随政策调整，境外拨打需加拨正确的国际区号，以当地官方最新公布为准。
 
 **Q：终端能执行所有 Linux 命令吗？**  
 在真 Linux 模式下，能执行 rootfs 中已安装程序支持的任意命令；不存在的程序会报 command not found。模拟模式只支持内置命令。
@@ -1353,11 +1393,12 @@ python tools/make_intro_images.py
 - [ ] 代码工作室 13 种语言与 DEBUG 定位
 - [ ] 文件管理器三种来源增删改查
 - [ ] 办公 PDF / DOCX / XLSX / PPTX 打开与另存
-- [ ] 地图搜索与定位
+- [ ] 地图搜索、定位回退、地点详情与三种路线
+- [ ] 黄页国家筛选、紧急电话与常用热线
 - [ ] 相机原生 / 取景器两条通道
 - [ ] 相册系统选择与桥接扫描
 - [ ] 省电策略三档
-- [ ] 16 个应用可打开、可关闭
+- [ ] 17 个应用可打开、可关闭
 - [ ] 截图与文档同步更新
 - [ ] 更新 `README`、`MANUAL`、`RELEASE_NOTES`
 - [ ] 生成 zip 与 SHA256SUMS
@@ -1373,7 +1414,7 @@ python tools/make_intro_images.py
 |---|---|---|---|
 | 1 | 启动动画 | 通过 | 进度、日志、跳过按钮 |
 | 2 | 锁屏点击解锁 | 通过 | 进入桌面 |
-| 3 | 桌面 16 应用 | 通过 | 网格与 Dock |
+| 3 | 桌面 17 应用 | 通过 | 网格与 Dock |
 | 4 | 终端 help / neofetch | 通过 | 模拟模式 |
 | 5 | CMD dir | 通过 | 模拟模式 |
 | 6 | PowerShell Get-ChildItem | 通过 | 模拟模式 |
@@ -1397,9 +1438,9 @@ python tools/make_intro_images.py
 | 24 | 代码工作室 13 语言 | 通过 | 下拉与说明面板完整 |
 | 25 | HTML / CSS 检查 | 通过 | CSS 未闭合括号报告「第 1 行 第 6 列」并阻止预览 |
 | 26 | 桥接 /api/studio | 通过 | 语言探测、编译、运行与 DEBUG 路由 |
-| 27 | 地图瓦片 | 通过 | Esri；Leaflet 从 unpkg 加载 |
-| 28 | 地图搜索 | 通过 | Photon「上海外滩」 |
-| 29 | 地图标记 / 缩放 | 通过 | flyTo 15 |
+| 27 | 地图瓦片 | 通过 | Esri；Leaflet 从本地 `vendor/leaflet/` 加载 |
+| 28 | 地图搜索 | 通过 | Photon；「东方明珠电视塔」相关度排序后位列第一 |
+| 29 | 地图标记 / 缩放 | 通过 | flyTo 15；选中后打开详情面板 |
 | 30 | 备忘录 CRUD | 通过 | localStorage 回显 |
 | 31 | 媒体播放 / 视频切换 | 通过 | 合成音频与标签 |
 | 32 | 相册系统选择 | 通过 | 导入 3 张本地图片并写入 IndexedDB |
@@ -1408,15 +1449,19 @@ python tools/make_intro_images.py
 | 35 | 省电策略 | 通过 | 手动开启立即生效；模拟 15% 未充电自动开启，充电退出；无 API 显示不可用 |
 | 36 | 流畅度 | 通过 | 打开应用后 0.6 秒内背景粒子绘制帧数为 0，返回桌面恢复 |
 | 37 | 设置主题 / 网络 | 通过 | 状态栏跟随 effectiveType |
-| 38 | PWA SW / 缓存 | 通过 | activated，包含 6 个 JS、4 个 CSS 与字体 |
+| 38 | PWA SW / 缓存 | 通过 | activated，包含 8 个业务 JS、Leaflet、CSS 与字体 |
 | 39 | 离线壳 | 通过（静态资源） | 地图脚本 / 瓦片、Pyodide、未缓存办公库需网络 |
-| 40 | 双平台更新检查 | 通过 | 模拟 GitHub / GitCode 返回 1.1.1，两来源均可用并显示更新条 |
+| 40 | 双平台更新检查 | 通过 | 模拟 GitHub / GitCode 返回 1.2.1，两来源均可用并显示更新条 |
 | 41 | 更新来源选择 | 通过 | 选择 GitCode 后设置页选中，刷新目标为 GitCode |
 | 42 | 更新失败路径 | 通过 | 两来源不可达时明确报错，不伪造新版本 |
 | 43 | 更新提示 / 手动检查 | 通过 | 自动检查去重；设置页可强制检查与打开对应发布页 |
 | 44 | Termux 主机通道 | 通过（分支 + 模拟界面） | 服务端 `scope=host` 在本机以 Termux 模式执行成功；界面在 Termux mock 下切换 LINUX / TERMUX，`pkg update` 返回 host；真实 Termux 需真机复测 |
 | 45 | iSH 主机通道 | 通过（模拟界面） | iSH mock 显示 ISH 按钮、`ish@alpine` 提示符，`apk update` 返回 host；iPhone / iPad 真机需复测 |
 | 46 | Kotlin / Swift 编译与诊断 | 部分验证 | 13 语言注册、样例、说明与缺工具提示通过；本机未安装 kotlinc / swiftc，未做真实编译；Kotlin 异常栈与 Swift fatal error 解析用样例输出验证 |
+| 47 | 地图定位回退 | 通过 | GPS 被拒绝后自动使用 IP 城市级定位，HUD 与状态文案标注「IP APPROX · CITY LEVEL」 |
+| 48 | 地点详情 | 通过 | 东方明珠电视塔返回地址、营业时间与官网；OSM 未收录电话时显示明确提示 |
+| 49 | 真实路线 | 通过 | 余姚 → 东方明珠电视塔驾车 176 km、约 2 小时 16 分、38 个中文步骤与真实道路折线 |
+| 50 | 黄页 | 通过 | 212 个国家与地区条目、大洲筛选、国家搜索、IP 国家高亮、7 类常用热线；「驾车去」交接地图并自动规划路线 |
 
 桌面环境无法覆盖：真实手机相机画质与对焦速度、iOS Safari 安装 / 相册授权、Termux 真实短信与通知权限（本项目不读取这些数据）。
 
@@ -1427,9 +1472,9 @@ python tools/make_intro_images.py
 - 本项目为**概念演示与个人工具**，不提供电信服务、应用分发、系统刷机或商店兼容。
 - 不得将本项目用于绕过设备安全机制、侵犯他人系统、未授权访问或发送垃圾信息。
 - 电话 / 短信页面通过系统 URL Scheme 交接给系统 App；微信 / QQ 页面仅唤起官方 App 或系统分享。AETHER 不读取相关系统数据，也不代表任何平台；相关商标归各自权利人所有。
-- 地图瓦片、搜索与地理数据的使用需遵守 Esri、Photon、OpenStreetMap / Nominatim 的条款与署名要求。
+- 地图瓦片、搜索、地点详情与路线的使用需遵守 Esri、Photon、OpenStreetMap / Overpass、OSRM 与 FOSSGIS 的条款与署名要求。
 - Orbitron、Rajdhani 字体遵循 SIL OFL 1.1，许可证见 `fonts/OFL-*.txt`。
-- Leaflet 遵循 BSD-2-Clause；Pyodide 遵循 MPL-2.0。
+- Leaflet 遵循 BSD-2-Clause（本地 `vendor/leaflet/`）；Pyodide 遵循 MPL-2.0。
 - pdf-lib 遵循 MIT；SheetJS 遵循 Apache-2.0；mammoth 遵循 BSD-2-Clause；JSZip 遵循 MIT 或 GPLv3 双许可。许可证原文见 `vendor/LICENSE-*`。
 - 本项目代码采用 MIT License；第三方组件保留各自许可证。
 
@@ -1474,7 +1519,7 @@ Get-Command  Write-Output  Clear-Host  cls  shell
 | 文件接口 | `/api/files/roots|list|read|write|mkdir|rename|delete` |
 | 相册接口 | `/api/gallery/list|file` |
 | 令牌文件 | `bridge/.aether_token` |
-| Service Worker 缓存 | `aether-v1.1.0-b3` |
+| Service Worker 缓存 | `aether-v1.2.0-b1` |
 | PWA 主题色 | `#04070c` |
 
 ### 15.5 URL 参数
@@ -1484,7 +1529,7 @@ Get-Command  Write-Output  Clear-Host  cls  shell
 | `skip` | `1` | 跳过启动与锁屏 |
 | `app` | 应用 ID | 打开指定应用 |
 
-应用 ID：`terminal`、`phone`、`messages`、`wechat`、`qq`、`alipay`、`browser`、`files`、`office`、`code`、`map`、`notes`、`media`、`photos`、`camera`、`settings`。
+应用 ID：`terminal`、`phone`、`messages`、`wechat`、`qq`、`alipay`、`browser`、`files`、`office`、`code`、`map`、`yellow`、`notes`、`media`、`photos`、`camera`、`settings`。
 
 ### 15.6 localStorage 键
 
@@ -1498,11 +1543,11 @@ Get-Command  Write-Output  Clear-Host  cls  shell
 
 ```text
 SHA256SUMS.txt
-  <sha256>  aether-os-1.1.0.zip
+  <sha256>  aether-os-1.2.0.zip
 ```
 
 每次发布都应重新生成并核对；README、MANUAL、RELEASE_NOTES 与 zip 内容保持一致。
 
 ---
 
-<p align="center"><sub>AETHER OS 1.1.0 · 概念系统 · 真 Linux 可选桥接 · 不修改固件</sub></p>
+<p align="center"><sub>AETHER OS 1.2.0 · 概念系统 · 真 Linux 可选桥接 · 不修改固件</sub></p>

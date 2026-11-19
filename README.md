@@ -10,14 +10,14 @@
 </p>
 
 <p align="center">
-  版本 1.1.0 · 构建 2026.11.19 · 纯前端 + Python 标准库桥接 · 无构建步骤 · 无后端依赖
+  版本 1.2.0 · 构建 2026.11.19 · 纯前端 + Python 标准库桥接 · 无构建步骤 · 无后端依赖
 </p>
 
 ---
 
 > **一句话认识它**
 >
-> AETHER OS 不是手机固件，也不是可以刷入手机的自研内核。它是一套可以「安装到主屏幕」的未来科技风 PWA 界面，包含终端、电话、短信、微信、QQ、支付宝、浏览器、文件、办公、代码工作室、地图、备忘录、媒体、相册、相机与设置等 **16 个应用**；在 Android 的 Termux 或 iPhone 的 iSH 中启动本地桥接后，终端既能在 Linux 用户空间中执行命令，也能切换到 **Termux / iSH 主机**直接运行 `pkg`、`termux-*`、`apk` 等命令；代码工作室可以编译、运行并调试 **13 种语言（含 Kotlin / Swift）**。
+> AETHER OS 不是手机固件，也不是可以刷入手机的自研内核。它是一套可以「安装到主屏幕」的未来科技风 PWA 界面，包含终端、电话、短信、微信、QQ、支付宝、浏览器、文件、办公、代码工作室、地图、黄页、备忘录、媒体、相册、相机与设置等 **17 个应用**；在 Android 的 Termux 或 iPhone 的 iSH 中启动本地桥接后，终端既能在 Linux 用户空间中执行命令，也能切换到 **Termux / iSH 主机**直接运行 `pkg`、`termux-*`、`apk` 等命令；代码工作室可以编译、运行并调试 **13 种语言（含 Kotlin / Swift）**。地图支持全球真实地点搜索、GPS / IP 定位、地点电话与营业信息、真实驾车 / 步行 / 骑行路线；黄页内置 **212 个国家与地区的紧急电话**和常用服务热线。
 >
 > 电话与短信通过 `tel:` / `sms:` 交给手机系统 App；微信、QQ、支付宝通过官方 URL Scheme 唤起，并可调用系统分享。AETHER 不读取系统短信、通话记录或聊天内容。Wi-Fi / 数据开关仍为**交互模拟**；Android / iOS 的内核、引导链、基带与 App Store / Google Play 生态**不会被修改，也无法被本项目管理**。所有能力边界在本文与[完整说明书](docs/MANUAL.md)中逐项写清。
 
@@ -56,7 +56,7 @@
 
 1. **把「未来科技风移动系统」做出来**：启动动画、锁屏、桌面、状态栏、应用窗口、转场、主题色与壁纸，全部是真实可交互的界面，不是视频或静态图。
 2. **把「Linux 终端」做真**：在 Android 上用 Termux + proot-distro 安装 Ubuntu / Kali；在 iPhone 上用 iSH 运行 Alpine。网页里的终端通过本地 token 鉴权的桥接执行真实命令，而不是只打印假输出。
-3. **把「日用套件」做全**：电话、短信、微信、QQ、支付宝、浏览器、文件、办公、代码工作室、地图、备忘录、媒体、相册、相机、设置，共 16 个应用，尽量可用、可演示、可扩展。
+3. **把「日用套件」做全**：电话、短信、微信、QQ、支付宝、浏览器、文件、办公、代码工作室、地图、黄页、备忘录、媒体、相册、相机、设置，共 17 个应用，尽量可用、可演示、可扩展。
 4. **把「能力边界」说透**：哪些是真的、哪些是模拟的、哪些技术上不可能，逐项列出，避免用「三内核合并」「全平台兼容」这类无法兑现的承诺误导使用者。
 
 它适合：
@@ -100,7 +100,7 @@ AETHER OS 的做法是：
 
 ## 3. 功能总览
 
-### 3.1 16 个内置应用
+### 3.1 17 个内置应用
 
 | # | 应用 | 能力 | 性质 |
 |---|---|---|---|
@@ -114,12 +114,13 @@ AETHER OS 的做法是：
 | 8 | **文件** | 本机目录授权、手机存储桥接、AETHER 私有空间；上传、新建、查看、重命名/移动、删除、下载 | 真实（系统授权 / 桥接 / OPFS） |
 | 9 | **办公** | PDF 查看与页面/文字层编辑；DOCX 预览与逐段编辑；XLSX/XLS/CSV/ODS 表格编辑；PPTX 文字编辑；另存副本 | 真实（本地，PDF-lib / SheetJS / mammoth / JSZip） |
 | 10 | **代码工作室** | **13 种语言**：JS、Python、HTML、CSS、C、C++、Java、Kotlin、Swift、Rust、Go、PHP、汇编；逐行 DEBUG、断点与精确行列错误定位 | 浏览器沙盒 + 桥接真实编译 |
-| 11 | **地图** | Esri 暗色瓦片、Photon / OSM 搜索、真实 GPS 定位、直线距离 | 真实（需网络与定位权限） |
-| 12 | **备忘录** | 新建、编辑、搜索、删除、自动保存 | 真实（本地 localStorage） |
-| 13 | **媒体** | 三段 WebAudio 合成音乐、本地音频 / 视频导入播放 | 真实（本地） |
-| 14 | **相册** | 系统照片选择器导入并保存副本、桥接扫描手机相册目录、按来源筛选与下载原图 | 真实（系统选择器 / Termux 授权 / iSH 可见目录） |
-| 15 | **相机** | 系统相机原始文件通道；取景器连续自动对焦、点按对焦、双指/滑杆变焦 | 真实（系统相机 / MediaDevices） |
-| 16 | **设置** | 主题与壁纸、网络概念开关、桥接配置、真实省电模式、安装说明、存储清理 | 混合（省电策略为真实渲染控制） |
+| 11 | **地图** | Esri 暗色瓦片、Photon / OSM 全球地点搜索与相关度排序、GPS 定位与 IP 粗略定位回退、地点电话 / 营业时间 / 官网等详情、真实驾车 / 步行 / 骑行路线与中文分步指引 | 真实（需网络与定位权限） |
+| 12 | **黄页** | 全球地点黄页（搜索后查看详情，一键转入地图导航）；**212 个国家与地区**的报警 / 急救 / 消防 / 反诈等紧急电话；7 类常用服务热线 | 真实（数据内置于本地文件） |
+| 13 | **备忘录** | 新建、编辑、搜索、删除、自动保存 | 真实（本地 localStorage） |
+| 14 | **媒体** | 三段 WebAudio 合成音乐、本地音频 / 视频导入播放 | 真实（本地） |
+| 15 | **相册** | 系统照片选择器导入并保存副本、桥接扫描手机相册目录、按来源筛选与下载原图 | 真实（系统选择器 / Termux 授权 / iSH 可见目录） |
+| 16 | **相机** | 系统相机原始文件通道；取景器连续自动对焦、点按对焦、双指/滑杆变焦 | 真实（系统相机 / MediaDevices） |
+| 17 | **设置** | 主题与壁纸、网络概念开关、桥接配置、真实省电模式、安装说明、存储清理 | 混合（省电策略为真实渲染控制） |
 
 > **关于代码工作室的 13 种语言**：JavaScript、Python、HTML、CSS 在浏览器内运行或预览；C、C++、Java、Kotlin、Swift、Rust、Go、PHP、汇编需要本机桥接提供的真实工具链。Kotlin 只编译 JVM 命令行程序，不构建 Android APK；Swift 只编译命令行程序，不构建 iOS App；本系统不包含 Android SDK / Gradle / Xcode。HTML 与 CSS 使用隔离子沙盒预览，不读取令牌；「检查」对标签/括号做基础配对校验，不做完整 W3C 校验。详情见 [10.8](#108-代码工作室)。
 
@@ -141,7 +142,7 @@ AETHER OS 的做法是：
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/shot-home.png" alt="桌面"><br><sub>桌面：16 个应用、系统卡片与真实状态栏</sub></td>
+    <td width="50%"><img src="docs/shot-home.png" alt="桌面"><br><sub>桌面：17 个应用、系统卡片与真实状态栏</sub></td>
     <td width="50%"><img src="docs/shot-boot.png" alt="启动"><br><sub>启动：引导日志、进度与 X 徽标</sub></td>
   </tr>
   <tr>
@@ -153,12 +154,15 @@ AETHER OS 的做法是：
     <td><img src="docs/shot-camera.png" alt="相机"><br><sub>相机：系统相机原始文件、自动对焦与变焦</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/shot-map.png" alt="地图"><br><sub>地图：真实瓦片、搜索与定位标记</sub></td>
-    <td><img src="docs/shot-photos.png" alt="相册"><br><sub>相册：系统选择器导入与桥接扫描</sub></td>
+    <td><img src="docs/shot-map.png" alt="地图"><br><sub>地图：全球搜索、GPS / IP 定位、地点详情与真实路线</sub></td>
+    <td><img src="docs/shot-yellow.png" alt="黄页"><br><sub>黄页：212 个国家与地区的紧急电话与常用热线</sub></td>
   </tr>
   <tr>
+    <td><img src="docs/shot-photos.png" alt="相册"><br><sub>相册：系统选择器导入与桥接扫描</sub></td>
     <td><img src="docs/shot-terminal.png" alt="终端"><br><sub>终端：三壳模式与欢迎信息</sub></td>
-    <td><img src="docs/shot-settings.png" alt="设置"><br><sub>设置：真实省电策略与系统信息</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/shot-settings.png" alt="设置"><br><sub>设置：真实省电策略与系统信息</sub></td>
   </tr>
 </table>
 
@@ -284,7 +288,7 @@ python3 -m http.server 8787
 
 步骤：
 
-1. 下载 Release 中的 `aether-os-1.1.0.zip`，解压到用户目录，或直接 `git clone` 本项目。
+1. 下载 Release 中的 `aether-os-1.2.0.zip`，解压到用户目录，或直接 `git clone` 本项目。
 2. 在 Termux 中准备基础环境：
 
    ```bash
@@ -296,7 +300,7 @@ python3 -m http.server 8787
 3. 进入项目目录并执行准备脚本：
 
    ```bash
-   cd ~/aether-os-1.1.0       # 按实际解压路径调整
+   cd ~/aether-os-1.2.0       # 按实际解压路径调整
    bash bridge/setup-termux.sh
    ```
 
@@ -337,11 +341,11 @@ python3 -m http.server 8787
 
 步骤：
 
-1. 把项目放入「文件」App，例如 `我的 iPhone/AETHER/aether-os-1.1.0`。
+1. 把项目放入「文件」App，例如 `我的 iPhone/AETHER/aether-os-1.2.0`。
 2. 打开 iSH，挂载并进入项目目录（iSH 默认可以访问「文件」中的 iSH 文件夹，也可用 `mount -t ios . /mnt` 挂载其他位置）：
 
    ```sh
-   cd /mnt/aether-os-1.1.0
+   cd /mnt/aether-os-1.2.0
    ```
 
 3. 准备 Alpine 环境：
@@ -416,7 +420,7 @@ GET /api/health
 {
   "ok": true,
   "bridge": "aether",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "mode": "termux",
   "platform": "Linux",
   "installed": ["ubuntu", "kali"],
@@ -629,24 +633,33 @@ apt update && apt install -y build-essential gdb python3
 原生语言必须在设置/终端中连接本机桥接；桥接会按白名单调用系统工具链，并把编译诊断和工作目录限制在临时目录内。工具链本身需要你在 Termux / iSH / Windows 上预先安装，详见 `bridge/studio.py` 的 `TOOL_HINTS`。Kotlin 需要 `kotlinc` 与 JDK，Swift 需要官方 `swiftc`；iSH 不能安装官方 Swift 工具链，Android 上也没有 Android SDK / Gradle，因此这里不能生成 APK 或 iOS App。
 
 ### 10.9 地图
-- 瓦片：Esri Dark Gray Canvas（无需 API Key；遵循 Esri 使用条款）。
-- 搜索：Photon 优先，Nominatim 兜底，12 秒超时。
-- 定位：调用浏览器 Geolocation API；需要授权与安全上下文（HTTPS / localhost）。
-- 选中结果后放置标记；若已定位，绘制到目标的**直线**并显示距离，**不是**转向级导航。
-- 需要网络加载瓦片与搜索；离线时只显示已缓存瓦片。
+- 瓦片：Esri Dark Gray Canvas（无需 API Key；遵循 Esri 使用条款）；Leaflet 1.9.4 已随项目本地打包，不再从 CDN 加载。
+- 搜索：Photon 全球地理编码，8 秒超时；单次最多请求 40 条，客户端去重后按「名称匹配度 + 地点类型 + 与当前位置距离」排序，避免同名小区、公交站压过目标地标；结果列表最多展示 20 条。
+- 定位：优先调用浏览器 Geolocation API；需要授权与安全上下文（HTTPS / localhost）。授权被拒绝或定位失败时，回退到 `ipinfo.io` 的 IP 粗略定位，界面明确标注「IP APPROX · CITY LEVEL / IP 粗略定位」，精度只到城市级，不能当作精确位置。
+- 地点详情：选中结果后读取 OpenStreetMap / Overpass 标签，展示地址、电话（`phone`、`contact:phone`、`contact:mobile`、`mobile`）、营业时间、官网、运营方 / 品牌；OSM 未收录电话时会如实提示。详情接口失败不影响地图标记与路线，并显示具体错误。
+- 路线：支持驾车 / 步行 / 骑行三种模式。驾车使用 OSRM 公共路由，步行与骑行使用 FOSSGIS 公共路由；返回真实道路几何、总距离、预计时间与中文分步指引，点击步骤可定位到对应路口。公共路由服务不保证可用性，失败时会显示原因。
+- 边界：没有实时路况、公交 / 地铁换乘、离线搜索或离线路径规划；瓦片、搜索、详情与路线均需网络，离线只显示已缓存瓦片。
+- 隐私：搜索关键词发送给 Photon，详情请求发送给 Overpass，路线坐标发送给 OSRM / FOSSGIS；这些请求不经过本项目服务器。
 
-### 10.10 备忘录
+### 10.10 黄页
+- 地点黄页：与地图共用 Photon 全球搜索，可直接查看地址、电话、营业时间与官网，并把目标交给地图继续定位或规划驾车 / 步行 / 骑行路线。
+- 紧急电话：内置 **212 个国家与地区**的报警、消防、急救、统一紧急号码及补充号码，支持按大洲筛选、按国家搜索，并会根据 IP 粗略定位高亮当前国家或地区。
+- 常用热线：7 类共 40 余条，包括领事与海外求助、支付与银行卡、通信与运营商、铁路 / 航空 / 出行、快递与物流、手机与电脑支持、消费与政务。
+- 拨打：点击号码通过 `tel:` 交给系统电话 App；网页本身不拨号。手机号码格式会保留 `+` 与国际区号，境外拨打需自行确认国际拨号前缀。
+- 数据边界：号码可能随当地政策调整，以官方最新公布为准；黄页不会实时校验号码可用性，也不代替当地官方求助渠道。
+
+### 10.11 备忘录
 - 新建、编辑、搜索、删除。
 - 输入后 400 ms 自动保存到 localStorage，关闭应用后仍保留。
 - 清除浏览器数据会删除全部备忘录；设置页提供「清除本地数据」按钮。
 
-### 10.11 媒体
+### 10.12 媒体
 - 三段由 WebAudio 实时合成的氛围音乐（不是真实曲目）。
 - 导入本地音频（mp3 / m4a / wav / ogg）真实播放；文件不会上传。
 - 导入本地视频（mp4 / webm / mov），能否播放取决于浏览器与系统的解码能力。
 - 移动端 Safari 对部分容器 / 编码支持有限。
 
-### 10.12 相册
+### 10.13 相册
 - 浏览器 / PWA 不能静默枚举整个系统相册，这是平台安全边界。
 - 「选择图片」调用系统照片选择器，把用户主动选择的图片复制到浏览器 IndexedDB；不上传。
 - 连接本机桥接后可扫描 `DCIM` / `Pictures` 等相册目录：Termux 需要先执行 `termux-setup-storage` 并把照片目录授权给 Termux；iSH 只能扫描它可见的挂载目录。
@@ -654,7 +667,7 @@ apt update && apt install -y build-essential gdb python3
 - 支持按「本机选择 / 桥接相册」筛选、全屏查看与下载原图。
 - 相册不会写入系统相册，也不会删除你的原始照片。
 
-### 10.13 设置
+### 10.14 设置
 - 主题色：青 / 洋红 / 青柠 / 琥珀。
 - 壁纸：极光、星云、网格、深空。
 - Wi-Fi / 数据网络：概念开关，只影响界面状态，不控制真实射频。
@@ -664,7 +677,7 @@ apt update && apt install -y build-essential gdb python3
 - 存储与数据：显示 localStorage 用量，一键清除。
 - 能力边界：内置透明说明。
 
-### 10.14 文件
+### 10.15 文件
 - **本机目录**：使用 File System Access API 打开系统目录选择器，用户授权后可增删改查真实文件；目录句柄保存在 IndexedDB，下次需重新确认权限。
 - **手机存储**：通过 Termux / iSH 桥接读写共享存储或用户目录；Android 需 `termux-setup-storage`，iOS 受 iSH 沙盒可见范围限制。
 - **AETHER 空间**：浏览器私有 OPFS，持久保存，可导入导出、新建文件夹/文本、重命名、移动、删除。
@@ -672,7 +685,7 @@ apt update && apt install -y build-essential gdb python3
 - 安全限制：拒绝目录穿越与受保护文件名，桥接写入使用原子替换；桥接单文件上限 64 MB；网页无法绕过系统授权访问任意路径。
 - 不支持解压压缩包、批量同步或后台文件监控。
 
-### 10.15 相机
+### 10.16 相机
 - **原生相机通道**：通过系统图片捕获入口 `capture="environment"` / `capture="user"` 调起手机原生相机，用户拍完后直接保存相机返回的原始文件字节，不再二次压缩或转码。最终分辨率、HDR、夜景算法与画质由手机系统相机决定，网页无法强制等同系统相机 App 的完整处理流程。
 - **取景器模式**：`getUserMedia` 实时取景；设备支持时启用连续自动对焦与点按对焦；支持双指捏合和滑杆变焦，变焦范围来自设备 `MediaTrackCapabilities`，不支持时明确显示「变焦不可用」。
 - 取景器拍照走 Canvas 编码，属于浏览器重编码路径；追求原始画质请使用「原生相机 · 原始文件」。
@@ -697,7 +710,9 @@ aether-os/
 │  ├─ core.js                 # 系统内核：注册、窗口、桌面、主题、网络、电池、省电、更新检查
 │  ├─ terminal.js             # 三壳终端 + 真 Linux 桥接客户端
 │  ├─ apps-social.js          # 电话、短信、微信、QQ、支付宝
-│  ├─ apps-tools.js           # 代码、地图、媒体、相册、相机、备忘录、浏览器、设置
+│  ├─ places.js               # 地点搜索、OSM 详情、OSRM / FOSSGIS 路线、IP 定位
+│  ├─ hotlines.js             # 212 个国家与地区紧急电话 + 常用服务热线
+│  ├─ apps-tools.js           # 代码、地图、黄页、媒体、相册、相机、备忘录、浏览器、设置
 │  ├─ files.js                # 文件管理器：本机目录 / 桥接 / OPFS
 │  └─ office.js               # PDF / DOCX / XLSX / PPTX / CSV / 文本
 ├─ bridge/
@@ -708,7 +723,7 @@ aether-os/
 │  ├─ setup-termux.sh         # Android Termux 一键准备
 │  ├─ setup-ios-ish.sh        # iOS iSH 准备
 │  └─ .aether_token           # 运行时生成，已 gitignore，不随项目分发
-├─ vendor/                    # 本地办公库：pdf-lib / SheetJS / mammoth / JSZip
+├─ vendor/                    # 本地依赖：pdf-lib / SheetJS / mammoth / JSZip / Leaflet 1.9.4
 ├─ fonts/                     # Orbitron / Rajdhani（SIL OFL 1.1）与许可证
 ├─ icons/                     # X 徽标：SVG + 192/512/1024 PNG + maskable
 ├─ docs/                      # 说明书、截图、架构图、发布说明
@@ -754,8 +769,14 @@ PWA 前端没有后端账号体系，所有数据在浏览器本地。清除站�
 ### Q4.1：能接收短信、微信 / QQ / 支付宝消息，或接听来电吗？
 不能。浏览器 / PWA 没有读取系统短信收件箱、来电状态、微信 / QQ / 支付宝聊天数据的 API，也不能接听或拒接电话。Android 需要默认拨号器或通知监听等原生权限，iOS 则不允许第三方读取这些数据。本项目不提供伪造的「新消息」或「来电接听」界面；唯一真实的路径是已实现的系统 App 交接。
 
-### Q5：地图为什么有时没有结果？
-搜索依赖 Photon / Nominatim 第三方服务，可能受网络、地区或服务限流影响。已做 12 秒超时与 Nominatim 兜底；失败时会显示提示。瓦片来自 Esri，需要网络。
+### Q5：地图为什么有时没有结果，或者路线规划失败？
+搜索依赖 Photon 公共地理编码服务，可能受网络、地区或服务限流影响，已做 8 秒超时与明确的失败提示；搜索先请求 40 条再在本地按相关度排序，仍找不到时可以换用更完整的名称或地标名。详情依赖 Overpass 镜像，路线依赖 OSRM（驾车）与 FOSSGIS（步行 / 骑行）公共路由；任一服务不可达时对应功能会显示原因，不影响其他功能。瓦片来自 Esri，需要网络。
+
+### Q5.1：为什么定位显示的是城市，不是我站的位置？
+浏览器定位被拒绝、超时或设备没有 GPS 时，地图会回退到 IP 定位，只能精确到城市级，界面会显示「IP APPROX · CITY LEVEL」。要获得精确位置，请在 HTTPS 或 localhost 下允许定位权限。
+
+### Q5.2：黄页里的电话号码都能直接拨通吗？
+黄页是本地离线数据，提供国家与地区的主要紧急号码和常用服务热线，号码可能随政策调整，以当地官方最新公布为准；点击号码只是通过 `tel:` 交给系统电话 App，网页无法验证号码是否仍有效。境外拨打需要正确加拨国际区号。
 
 ### Q6：Python 第一次运行很久 / 失败？
 Pyodide 首次运行需要从 CDN 下载十几 MB 运行时。网络受限时会较慢或失败；可以稍后重试，或改用真 Linux 中的 Python。加载成功后浏览器会缓存运行时。
@@ -775,7 +796,7 @@ iOS Safari 不提供 `Network Information API`，无法读取真实蜂窝代际�
 维护者发布新版本时，除了提升界面版本、`sw.js` 的 `VERSION`，还要在两平台的 `version.json` 写入更高的 `version` 与发布说明。Release 提供完整 zip 与 SHA256 校验值。浏览器不能把一个平台的远端文件直接替换到另一个已安装 PWA 的包内，这是平台边界。
 
 ### Q11：会不会上传我的数据？
-不会。项目没有遥测、账号或上传接口。地图搜索会将关键词发送给 Photon / Nominatim；瓦片请求发送给 Esri；Pyodide 从 CDN 加载；此外没有外部请求。
+不会。项目没有遥测、账号或上传接口。地图 / 黄页搜索会把关键词发送给 Photon，地点详情会把 OSM 要素编号发送给 Overpass，路线会把起点与终点坐标发送给 OSRM / FOSSGIS，定位失败时的 IP 回退会访问 `ipinfo.io`；瓦片请求发送给 Esri；Pyodide 从 CDN 加载；此外没有外部请求。
 
 ### Q12：为什么叫「三壳」而不是「三内核」？
 「三壳」指 Linux / CMD / PowerShell 三种 Shell 交互模式。项目明确不宣称三内核，因为 Ubuntu / Kali / deepin 是用户态发行版，不是三个内核。
@@ -831,6 +852,8 @@ python3 -m py_compile bridge/server.py bridge/studio.py bridge/files.py bridge/g
 node --check js/core.js
 node --check js/terminal.js
 node --check js/apps-social.js
+node --check js/places.js
+node --check js/hotlines.js
 node --check js/apps-tools.js
 node --check js/files.js
 node --check js/office.js
@@ -850,14 +873,15 @@ python tools/make_intro_images.py
 
 本项目在发布前完成了以下手工验证（Chromium 移动视口 + 本地桥接）：
 
-- 启动、锁屏、桌面渲染；桌面显示 **16 个应用**，状态栏电量来自 Battery Status API。
+- 启动、锁屏、桌面渲染；桌面显示 **17 个应用**，状态栏电量来自 Battery Status API。
 - 终端：`help`、`neofetch`、CMD `dir`、PowerShell `Get-ChildItem`；桥接健康检查与静态降级。
 - 电话、短信、微信、QQ、支付宝的原生 Scheme 交接与复制回退；旧演示数据清理。
 - 代码工作室：13 种语言下拉与说明面板（含 Kotlin / Swift）；HTML 样例在 `sandbox` iframe 中渲染；CSS 未闭合括号显示「第 1 行 第 6 列」并以 `CHECK FAILED` 阻止预览；桥接 `/api/studio` 的语言探测、编译、运行与 DEBUG 路由。
 - 文件：桥接文件 API 的根目录、列目录、读写、新建、重命名、删除、越界与符号链接拒绝共 15 项测试通过；浏览器内对 AETHER 空间与本机目录完成增删改查、文本保存和查看器刷新。
 - 办公：DOCX 应用修改后另存为有效 OOXML；PDF 旋转、页码、中文批注后另存为有效 PDF；PPTX 逐段修改后保留 7 个包内条目；TXT 保存 UTF-8 内容一致。
 - 相机：原生捕获入口、取景器约束、连续/点按对焦与设备变焦能力的代码路径验证；桌面环境无法验证真实手机镜头画质与对焦速度，需在真机复测。
-- 地图：Esri 瓦片、Photon 搜索、标记与定位。
+- 地图：Esri 瓦片渲染；「东方明珠电视塔」全球搜索在 40 条结果中经相关度排序后位列第一；GPS 被拒绝时回退到 IP 城市级定位并在界面标注；地点详情读取到地址、营业时间与官网，OSM 未收录电话时给出明确提示；余姚 → 东方明珠电视塔驾车路线返回 176 km、约 2 小时 16 分、38 个中文步骤与真实道路折线。
+- 黄页：212 个国家与地区条目渲染、大洲筛选、国家搜索、IP 国家高亮、7 类常用热线展示；地点详情与「驾车去」交接地图，并自动使用待处理目标规划路线。
 - 备忘录、媒体、相册缩略图、浏览器 iframe。
 - 省电：手动「开启」立即添加 `power-saver` 并暂停粒子/动画/模糊/过渡；自动策略在模拟 15% 未充电时开启，充电后退出；无 Battery API 时显示不可用提示。
 - 流畅度：包装 `requestAnimationFrame` 实测；打开应用后的 0.6 秒内背景粒子绘制帧数为 **0**，返回桌面后恢复。
@@ -868,26 +892,26 @@ python tools/make_intro_images.py
 
 ## 16. 版本与更新日志
 
-当前版本：**1.1.0**（构建 2026.11.19）
+当前版本：**1.2.0**（构建 2026.11.19）
 
 完整更新日志见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
-主要里程碑：
+本版本更新：
 
-- 1.1.0：新增**文件管理器**（本机目录 / 手机存储桥接 / AETHER 空间，增删改查）；办公套件支持真实 **PDF / DOCX / XLSX / PPTX** 打开与修改；新增**相机**（系统相机原始文件、自动对焦、变焦）；相册接入系统选择器与桥接扫描。
-- 代码工作室扩展到 **13 种语言**（新增 HTML、CSS、Kotlin、Swift），内置 13 语言与 DEBUG 作用说明；编译错误与运行时错误定位到精确行列；HTML/CSS 使用隔离沙盒预览。
-- 新增**真实省电模式**（自动 / 开启 / 关闭，Battery Status API 阈值触发）与全局流畅度优化。
-- 1.0.1：电话 / 短信交接系统 App，微信 / QQ / 支付宝唤起官方 App 与系统分享；删除全部演示会话与测试数据。
-- 1.0.0：完整的未来科技风 PWA 外壳、三壳终端、Termux / iSH 真 Linux 桥接与安全模型、本地字体、PWA 离线缓存、X 徽标全套图标。
+- **地图全面重做**：全球地点搜索 + 相关度排序、GPS 定位与 IP 粗略定位回退、地点电话 / 营业时间 / 官网等详情、驾车 / 步行 / 骑行真实路线与中文分步指引；Leaflet 改为本地打包，不再依赖 CDN。
+- **新增黄页应用**：全球地点黄页，以及 212 个国家与地区的紧急电话和 7 类常用服务热线；支持按大洲筛选、按国家搜索、IP 国家高亮，并可一键转入地图继续导航。
+- 新增 `js/places.js` 与 `js/hotlines.js` 数据层，应用总数达到 **17 个**；版本号、界面标识、桥接版本、Service Worker 缓存与更新清单统一为 **1.2.0**。
 
 ---
 
 ## 17. 致谢与第三方组件
 
-- **Leaflet 1.9.4** — BSD-2-Clause，地图交互库（首次打开地图时从 unpkg 加载）。
+- **Leaflet 1.9.4** — BSD-2-Clause，地图交互库；本地 `vendor/leaflet/`，许可证见 `vendor/leaflet/LICENSE`。
 - **Esri Dark Gray Canvas** — 地图瓦片与标注，遵循 Esri 使用条款。
-- **Photon（komoot）** — 地点搜索 API。
-- **OpenStreetMap / Nominatim** — 地理数据与兜底搜索；© OpenStreetMap contributors。
+- **Photon（komoot）** — 全球地点搜索 API。
+- **OpenStreetMap / Overpass** — 地理数据与地点详情；© OpenStreetMap contributors。
+- **OSRM / FOSSGIS** — 驾车与步行 / 骑行路线规划公共服务。
+- **ipinfo.io** — 定位失败时的 IP 城市级粗略定位。
 - **Pyodide 0.26.4** — MPL-2.0，浏览器中的 Python 运行时（首次运行从 jsDelivr 加载）。
 - **pdf-lib** — MIT，PDF 页面与文字层编辑；本地 `vendor/pdf-lib.min.js`。
 - **SheetJS Community Edition** — Apache-2.0，XLSX / XLS / ODS / CSV 解析与导出；本地 `vendor/xlsx.full.min.js`。

@@ -1,9 +1,9 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "build": "2026.11.19",
   "released": "2026-11-19",
   "channel": "stable",
-  "notes": "文件、办公、13 语言调试（含 Kotlin / Swift）、Termux / iSH 主机命令、相机、相册、真实省电，以及 GitHub / GitCode 双平台更新检查。",
+  "notes": "地图全球搜索与真实驾车 / 步行 / 骑行路线、GPS / IP 定位、地点电话与营业信息；全球电话黄页（212 个国家与地区）；文件、办公、13 语言调试（含 Kotlin / Swift）、相机、相册、真实省电，以及 GitHub / GitCode 双平台更新检查。",
   "platforms": {
     "github": "https://github.com/IAMMEZSH/aether-os/releases/latest",
     "gitcode": "https://gitcode.com/gcw_So3EkhfR/aether-os/releases"

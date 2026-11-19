@@ -26,16 +26,16 @@
       })
     }),
     etc: d({
-      'aether-release': f('AETHER OS 1.1.0 (concept)\nID=aether\nPRETTY_NAME="AETHER OS 1.1.0 Concept"\nHOME_URL="local://aether"\n'),
+      'aether-release': f('AETHER OS 1.2.0 (concept)\nID=aether\nPRETTY_NAME="AETHER OS 1.2.0 Concept"\nHOME_URL="local://aether"\n'),
       hostname: f('aether\n'),
-      'os-release': f('NAME="AETHER OS"\nVERSION="1.1.0 concept"\nID_LIKE="linux"\n')
+      'os-release': f('NAME="AETHER OS"\nVERSION="1.2.0 concept"\nID_LIKE="linux"\n')
     }),
     var: d({
       log: d({ 'aether.log': f('[boot] web compositor started\n[net] navigator.onLine watched\n[bridge] optional: termux proot-distro\n') })
     }),
     usr: d({ bin: d({}) }),
     sdcard: d({ DCIM: d({}), Download: d({}) }),
-    proc: d({ version: f('web-virtual 1.1.0 (concept-sandbox)\n') })
+    proc: d({ version: f('web-virtual 1.2.0 (concept-sandbox)\n') })
   });
 
   const RO_HOME = '/home/aether';
@@ -263,7 +263,7 @@
         printLine('切换上方 LINUX / ' + (bridge.cfg.mode === 'ish' ? 'ISH' : 'TERMUX') + ' 可改变命令执行位置；输入 help 查看示例。', 'dim');
       }
       function banner() {
-        printLine('AETHER TERMINAL  v1.1.0  ·  ' + (st.mode === 'real' ? 'REAL LINUX BRIDGE' : 'CONCEPT SANDBOX'), 'sys');
+        printLine('AETHER TERMINAL  v1.2.0  ·  ' + (st.mode === 'real' ? 'REAL LINUX BRIDGE' : 'CONCEPT SANDBOX'), 'sys');
         if (st.mode === 'real') {
           const via = bridge.cfg.mode === 'ish' ? 'iSH · Alpine' : 'proot-distro · ' + bridge.cfg.distro;
           printLine(`已连接 ${via}。命令真实执行，界面由 AETHER OS 提供。`, 'ok');
@@ -407,7 +407,7 @@
           whoami() { printLine(st.mode === 'real' ? 'root' : 'aether'); },
           hostname() { printLine('aether'); },
           uname() {
-            if (args.includes('-a')) printLine('AetherOS 1.1.0 concept web-virtual #1 SMP PREEMPT ' + new Date().toDateString() + ' x86_64 WebRuntime (sandbox)');
+            if (args.includes('-a')) printLine('AetherOS 1.2.0 concept web-virtual #1 SMP PREEMPT ' + new Date().toDateString() + ' x86_64 WebRuntime (sandbox)');
             else printLine('AetherOS');
           },
           date() { printLine(fmtDate(new Date())); },
@@ -454,7 +454,7 @@
               '      AETHER OS'
             ];
             const info = [
-              'OS: AETHER OS 1.1.0 concept',
+              'OS: AETHER OS 1.2.0 concept',
               'Host: Web Runtime (PWA)',
               'Kernel: web-virtual (sandbox)',
               'Shell: ' + (st.shell === 'pwsh' ? 'PowerShell (sim)' : st.shell),
@@ -519,7 +519,7 @@
             execSim(args.join(' '));
           },
           chmod() { printLine('chmod: 沙盒模式已记录（未真正修改）', 'dim'); },
-          ver() { printLine('AETHER OS [Version 1.1.0-concept]'); },
+          ver() { printLine('AETHER OS [Version 1.2.0-concept]'); },
           ipconfig() {
             printLine('');
             printLine('以太网适配器 aether0：');
@@ -530,8 +530,8 @@
           },
           systeminfo() {
             printLine('主机名:            AETHER');
-            printLine('OS 名称:           AETHER OS Concept 1.1.0');
-            printLine('OS 版本:           1.1.0 WebRuntime');
+            printLine('OS 名称:           AETHER OS Concept 1.2.0');
+            printLine('OS 版本:           1.2.0 WebRuntime');
             printLine('系统类型:          x64-based terminal (simulated)');
             printLine('处理器:            Browser JS Engine');
             printLine('物理内存总量:      8,192 MB (virtual)');

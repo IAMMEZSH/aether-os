@@ -38,7 +38,7 @@ import files as file_bridge
 import gallery
 import studio
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 ROOT = Path(__file__).resolve().parent.parent
 TOKEN_FILE = Path(__file__).resolve().parent / ".aether_token"
 

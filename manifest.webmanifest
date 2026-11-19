@@ -2,7 +2,7 @@
   "id": "./",
   "name": "AETHER OS · 概念系统",
   "short_name": "AETHER OS",
-  "description": "未来科技风移动系统概念壳：三壳终端、16 个应用、文件管理、办公套件、11 语言代码工作室、真实地图定位、相机相册、省电模式与可选的 Termux/iSH 真 Linux 桥接。",
+  "description": "未来科技风移动系统概念壳：三壳终端、17 个应用、文件管理、办公套件、13 语言代码工作室、全球地图搜索与真实路线、全球电话黄页、相机相册、省电模式与可选的 Termux/iSH 真 Linux 桥接。",
   "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "./index.html?source=pwa",
